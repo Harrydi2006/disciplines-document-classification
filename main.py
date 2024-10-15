@@ -4,6 +4,7 @@ import os
 import shutil
 import traceback
 from zhipuai import ZhipuAI
+
 # 配置文件路径
 config_file = 'config.conf'
 
@@ -15,8 +16,10 @@ if not os.path.exists(config_file):
     config['settings'] = {
         'api_key': '',  # 留空，用户手动填写
         'path': '',  # 留空，用户手动填写
+        'output_directory': '',  # 新增分类输出目录字段，用户手动填写
         'description': '根据文件名称推测其属于的学科(如语文、英语、数学、物理、化学、生物），不确定返回未知',
-        'subjects': '语文,英语,数学,物理,化学,生物,未知'  # 默认值，用户可根据需要修改
+        'subjects': '语文,英语,数学,物理,化学,生物,未知',  # 默认值，用户可根据需要修改
+        'allowed_extensions': ''  # 新增扩展名白名单，多个扩展名用逗号分隔，如 "pdf,docx,txt"
     }
 
     # 写入到文件中，确保以 UTF-8 编码保存
@@ -24,7 +27,7 @@ if not os.path.exists(config_file):
         config.write(configfile)
 
     # 提示用户补全配置文件
-    print(f"{config_file} 文件已创建，请补全 api_key 和 path 信息后再运行此程序。")
+    print(f"{config_file} 文件已创建，请补全 api_key、path 和 output_directory 信息后再运行此程序。")
     exit()  # 退出程序，等待用户填充配置文件
 
 # 读取 .conf 文件
@@ -34,17 +37,23 @@ config.read(config_file, encoding='utf-8')
 # 从 .conf 文件中获取 api_key 和路径
 api_key = config.get('settings', 'api_key')
 path = config.get('settings', 'path')
+output_directory = config.get('settings', 'output_directory')  # 新增输出目录
 description = config.get('settings', 'description')
 subjects = config.get('settings', 'subjects').split(',')
+allowed_extensions = config.get('settings', 'allowed_extensions')
+
+# 如果 allowed_extensions 不为空，则转换为列表
+if allowed_extensions:
+    allowed_extensions = [ext.strip().lower() for ext in allowed_extensions.split(',')]
+else:
+    allowed_extensions = None  # 如果为空，则允许所有文件
 
 # 检查配置文件内容是否为空
-if not api_key or not path:
-    print(f"{config_file} 文件中的 api_key 或 path 信息为空，请补全配置后再运行此程序。")
+if not api_key or not path or not output_directory:
+    print(f"{config_file} 文件中的 api_key、path 或 output_directory 信息为空，请补全配置后再运行此程序。")
     exit()
 
-# 设置你的API Key
-
-
+# 设置API Key
 client = ZhipuAI(api_key=api_key)
 
 # 定义工具函数，用于调用API
@@ -72,15 +81,23 @@ tools = [
     }
 ]
 
-# 创建目标分类文件夹
+# 创建目标分类文件夹（基于 output_directory，而不是 path）
 for subject in subjects:
-    folder_path = os.path.join(path, subject.strip())
+    folder_path = os.path.join(output_directory, subject.strip())
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
 # 获取指定路径下的文件列表
 files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
 
+# 如果 allowed_extensions 不为空，则过滤符合扩展名的文件
+if allowed_extensions:
+    files = [f for f in files if os.path.splitext(f)[1][1:].lower() in allowed_extensions]
+
+# 如果没有符合条件的文件，给出提示
+if not files:
+    print(f"没有符合扩展名 {allowed_extensions} 的文件。")
+    exit()
 
 # 定义函数用于检测文件名是否重复，并添加数字后缀
 def get_unique_filename(directory, file_name):
@@ -134,7 +151,7 @@ def classify_file(file_name):
 for file_name in files:
     subject = classify_file(file_name)  # 调用API获取学科分类
     source_path = os.path.join(path, file_name)
-    destination_directory = os.path.join(path, subject)
+    destination_directory = os.path.join(output_directory, subject)
 
     # 检查文件名是否重复，获取唯一的文件名
     unique_file_name = get_unique_filename(destination_directory, file_name)
@@ -143,4 +160,4 @@ for file_name in files:
     # 移动文件到对应学科文件夹
     shutil.move(source_path, destination_path)
     print(
-        f"文件 '{file_name}' 已分类到 {subject} 文件夹，重命名为 '{unique_file_name}'." if unique_file_name != file_name else f"文件 '{file_name}' 已分类到 {subject} 文件夹.")
+        f"文件 '{file_name}' 已分类到 {subject} 文件夹，重命名为 '{unique_file_name}'." if unique_file_name != file_name else f"文件 '{file_name}' 已分类到 {subject} 文件夹。")
