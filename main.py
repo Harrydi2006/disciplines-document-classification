@@ -19,7 +19,7 @@ if not os.path.exists(config_file):
         'output_directory': '',  # 新增分类输出目录字段，用户手动填写
         'description': '根据文件名称推测其属于的学科(如语文、英语、数学、物理、化学、生物），不确定返回未知',
         'subjects': '语文,英语,数学,物理,化学,生物,未知',  # 默认值，用户可根据需要修改
-        'allowed_extensions': ''  # 新增扩展名白名单，多个扩展名用逗号分隔，如 "pdf,docx,txt"
+        'allowed_extensions': ''  #扩展名白名单，多个扩展名用逗号分隔，如 "pdf,docx,txt"
     }
 
     # 写入到文件中，确保以 UTF-8 编码保存
@@ -81,7 +81,7 @@ tools = [
     }
 ]
 
-# 创建目标分类文件夹（基于 output_directory，而不是 path）
+# 创建目标分类文件夹
 for subject in subjects:
     folder_path = os.path.join(output_directory, subject.strip())
     if not os.path.exists(folder_path):
