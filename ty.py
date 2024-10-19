@@ -3,10 +3,10 @@ import json
 import os
 import shutil
 import traceback
-import textract
-import re  # 新增导入正则模块
+import re
+from docx import Document
 from PyPDF2 import PdfReader
-from openai import OpenAI  # 替换为 OpenAI
+from openai import OpenAI  
 
 # 配置文件路径
 config_file = 'config.conf'
@@ -84,30 +84,64 @@ def get_unique_filename(directory, file_name):
 
 # 清理文本：去除特殊字符并处理空格
 def clean_text(text):
-    # 去掉所有非字母、数字、空格的字符
-    text = re.sub(r'[^\w\s]', '', text)
-    # 将多个连续的空格替换为一个空格
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'[^\w\s]', '', text)  # 去掉所有非字母、数字、空格的字符
+    text = re.sub(r'\s+', ' ', text)  # 将多个连续的空格替换为一个空格
     return text.strip()
 
 
 def extract_text_from_file(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     try:
-        if ext in ['.doc', '.docx', '.ppt', '.pptx', '.txt']:
-            # 尝试读取文件内容
-            raw_text = textract.process(file_path).decode('utf-8', errors='ignore')
-            return clean_text(raw_text)
+        if ext == '.docx':
+            return extract_text_from_docx(file_path)
         elif ext == '.pdf':
-            with open(file_path, 'rb') as pdf_file:
-                reader = PdfReader(pdf_file)
-                text = ''
-                for page in reader.pages:
-                    text += page.extract_text() or ''  # 确保不返回 None
-                return clean_text(text)
+            return extract_text_from_pdf(file_path)
+        elif ext == '.txt':
+            return extract_text_from_txt(file_path)
+        else:
+            print(f"不支持的文件类型: {ext}")
+            return ''
     except Exception as e:
         print(f"读取文件内容失败: {e}")
         return ''
+
+
+def extract_text_from_docx(file_path):
+    try:
+        doc = Document(file_path)
+        full_text = []
+        for para in doc.paragraphs:
+            full_text.append(para.text)
+        return clean_text('\n'.join(full_text))
+    except Exception as e:
+        print(f"读取 .docx 文件失败: {e}")
+        return ''
+
+
+def extract_text_from_pdf(file_path):
+    try:
+        with open(file_path, 'rb') as pdf_file:
+            reader = PdfReader(pdf_file)
+            text = ''
+            for page in reader.pages:
+                text += page.extract_text() or ''
+            return clean_text(text)
+    except Exception as e:
+        print(f"读取 .pdf 文件失败: {e}")
+        return ''
+
+
+def extract_text_from_txt(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return clean_text(f.read())
+    except UnicodeDecodeError:
+        try:
+            with open(file_path, 'r', encoding='gbk') as f:
+                return clean_text(f.read())
+        except Exception as e:
+            print(f"读取 .txt 文件失败: {e}")
+            return ''
 
 
 def classify_file(file_name, file_path):
