@@ -23,6 +23,17 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
+    - name: Get Version
+      id: get_version
+      run: |
+        if ($env:GITHUB_REF -like 'refs/tags/*') {
+          $VERSION = $env:GITHUB_REF -replace 'refs/tags/',''
+        } else {
+          $VERSION = "ci-$($env:GITHUB_SHA.Substring(0,7))"
+        }
+        echo "VERSION=$VERSION" >> $env:GITHUB_ENV
+      shell: pwsh
+    
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
@@ -39,10 +50,36 @@ jobs:
       run: |
         python build.py
     
+    - name: Upload CI Build Artifact
+      uses: actions/upload-artifact@v2
+      if: "!startsWith(github.ref, 'refs/tags/')"  # 只在非标签推送时上传构建产物
+      with:
+        name: FileClassifier-${{ env.VERSION }}
+        path: dist/FileClassifier.exe
+        retention-days: 30  # 保留30天
+    
     - name: Create Release
       uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')  # 只在推送标签时创建发布
       with:
+        name: FileClassifier ${{ env.VERSION }}
         files: |
           dist/FileClassifier.exe
+        prerelease: false
+        draft: false
+        body: |
+          文件分类助手 ${{ env.VERSION }}
+          
+          ### 更新内容
+          - 自动构建发布版本
+          
+          ### 下载说明
+          - 下载 FileClassifier.exe
+          - 运行程序会自动创建必要的目录
+          
+          ### 环境要求
+          - Windows 系统
+          - Tesseract OCR
+          - FFmpeg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
