@@ -24,4 +24,13 @@ max_workers = 4
 tesseract_path = C:\Program Files\Tesseract-OCR\tesseract.exe
 
 [Audio]
-ffmpeg_path = C:\ffmpeg\bin\ffmpeg.exe 
+ffmpeg_path = C:\ffmpeg\bin\ffmpeg.exe
+
+[Mirrors]
+default = https://github.com
+china = https://gitee.com
+
+[Downloads]
+tesseract_mirror = auto
+ffmpeg_mirror = auto
+pip_mirror = auto 

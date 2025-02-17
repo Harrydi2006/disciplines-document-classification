@@ -12,6 +12,7 @@ import configparser
 import time
 import tkinter.messagebox as messagebox
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,18 @@ class SetupWindow:
         # 设置窗口样式
         self.style = ttk.Style()
         self.style.configure('Horizontal.TProgressbar', thickness=20)
+        
+        self.mirrors = {
+            'default': {
+                'tesseract': 'https://github.com/UB-Mannheim/tesseract/wiki/Tesseract-at-UB-Mannheim',
+                'ffmpeg': 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z',
+            },
+            'china': {
+                'tesseract': 'https://gitee.com/mirrors/tesseract/releases',
+                'ffmpeg': 'https://mirrors.tuna.tsinghua.edu.cn/ffmpeg/windows/ffmpeg-release-full.7z',
+                'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
+            }
+        }
         
         self._init_ui()
         self._center_window()
@@ -569,6 +582,98 @@ class SetupWindow:
         except Exception as e:
             logger.error(f"安装程序运行失败: {str(e)}")
             sys.exit(1)
+
+    def check_connection(self, url, timeout=5):
+        """检查连接速度"""
+        try:
+            start_time = time.time()
+            response = requests.get(url, timeout=timeout, stream=True)
+            if response.status_code == 200:
+                # 只下载前 8KB 来测试速度
+                for _ in response.iter_content(chunk_size=8192):
+                    break
+                elapsed = time.time() - start_time
+                return elapsed
+        except Exception as e:
+            self._add_log(f"连接测试失败: {url}, 错误: {str(e)}")
+            return float('inf')
+        return float('inf')
+
+    def select_best_mirror(self):
+        """选择最佳镜像源"""
+        self._add_log("正在测试镜像源连接速度...")
+        
+        test_urls = {
+            'default': 'https://github.com',
+            'china': 'https://gitee.com'
+        }
+        
+        results = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(self.check_connection, url): name 
+                      for name, url in test_urls.items()}
+            
+            for future in futures:
+                name = futures[future]
+                try:
+                    speed = future.result()
+                    results[name] = speed
+                    self._add_log(f"镜像源 {name} 响应时间: {speed:.2f}秒")
+                except Exception as e:
+                    self._add_log(f"测试镜像源 {name} 失败: {str(e)}")
+                    results[name] = float('inf')
+        
+        # 选择响应最快的镜像源
+        best_mirror = min(results.items(), key=lambda x: x[1])[0]
+        self._add_log(f"选择镜像源: {best_mirror}")
+        return best_mirror
+
+    def download_dependencies(self):
+        """下载依赖"""
+        # 选择最佳镜像源
+        mirror = self.select_best_mirror()
+        urls = self.mirrors[mirror]
+        
+        # 如果使用中国镜像，设置 pip 镜像
+        if mirror == 'china':
+            self._add_log("使用中国镜像源下载依赖")
+            import subprocess
+            try:
+                subprocess.run([
+                    'pip', 'config', 'set', 'global.index-url',
+                    'https://pypi.tuna.tsinghua.edu.cn/simple'
+                ], check=True)
+                self._add_log("已设置 pip 镜像源")
+            except Exception as e:
+                self._add_log(f"设置 pip 镜像源失败: {str(e)}")
+        
+        # 下载 Tesseract
+        self._download_file(urls['tesseract'], self.tesseract_progress, self.tesseract_label, "Tesseract")
+        
+        # 下载 FFmpeg
+        self._download_file(urls['ffmpeg'], self.ffmpeg_progress, self.ffmpeg_label, "FFmpeg")
+        
+        # ... 其他下载和安装步骤 ...
+
+    def download_file(self, url, filename):
+        """带进度条的文件下载"""
+        try:
+            response = requests.get(url, stream=True)
+            total_size = int(response.headers.get('content-length', 0))
+            
+            with open(filename, 'wb') as f, tqdm(
+                desc=f"下载 {filename}",
+                total=total_size,
+                unit='iB',
+                unit_scale=True
+            ) as pbar:
+                for data in response.iter_content(chunk_size=8192):
+                    size = f.write(data)
+                    pbar.update(size)
+                    
+        except Exception as e:
+            self._add_log(f"下载 {filename} 失败: {str(e)}")
+            raise
 
 def check_first_run() -> bool:
     """检查是否首次运行"""
