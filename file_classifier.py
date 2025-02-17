@@ -786,16 +786,32 @@ class FileClassifier:
 
 def main():
     try:
-        # 加载配置
-        config = load_config()
+        # 设置日志
+        log_dir = os.environ.get('LOG_DIR', 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, 'file_classifier.log')
+        
+        # 配置日志记录
+        logging.basicConfig(
+            filename=log_file,
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
+        logger = logging.getLogger('file_classifier')
+        logger.info("程序启动")
         
         # 创建主窗口
-        window = MainWindow(config)
+        from gui.main_window import MainWindow
+        window = MainWindow()
         
         # 运行主循环
         window.run()
+        
     except Exception as e:
         print(f"Error: {str(e)}")
+        if logger:
+            logger.error(f"程序异常退出: {str(e)}", exc_info=True)
         sys.exit(1)
 
 if __name__ == "__main__":

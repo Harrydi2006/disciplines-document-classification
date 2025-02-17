@@ -168,11 +168,10 @@ def setup_environment():
             os.environ['RESOURCE_DIR'] = base_path
             print(f"Resource dir set to: {base_path}")
             
-            # 创建必要的目录
-            for dir_name in ['logs', 'source', 'target']:
-                dir_path = os.path.join(os.getcwd(), dir_name)
-                os.makedirs(dir_path, exist_ok=True)
-                print(f"Created directory: {dir_path}")
+            # 只创建日志目录
+            log_dir = os.path.join(os.getcwd(), 'logs')
+            os.makedirs(log_dir, exist_ok=True)
+            print(f"Created logs directory: {log_dir}")
             
             # 处理配置文件
             config_template = os.path.join(base_path, 'config.conf.template')
@@ -182,19 +181,19 @@ def setup_environment():
                 shutil.copy2(config_template, config_file)
                 print(f"Copied config template to: {config_file}")
             
-            # 添加 GUI 模块路径
-            gui_path = os.path.join(base_path, 'gui')
-            if gui_path not in sys.path:
-                sys.path.insert(0, gui_path)
-                print(f"Added GUI path to sys.path: {gui_path}")
+            # 添加模块搜索路径
+            for path in [base_path, os.path.join(base_path, 'gui'), os.path.join(base_path, 'utils')]:
+                if path not in sys.path:
+                    sys.path.insert(0, path)
+                    print(f"Added to sys.path: {path}")
+                    
+            # 设置日志文件路径
+            os.environ['LOG_DIR'] = log_dir
             
-            # 添加主目录到 sys.path
-            if base_path not in sys.path:
-                sys.path.insert(0, base_path)
-                print(f"Added base path to sys.path: {base_path}")
     except Exception as e:
         print(f"Error in setup_environment: {str(e)}")
-        raise
+        import traceback
+        traceback.print_exc()
 
 # 设置环境
 setup_environment()
@@ -207,6 +206,8 @@ try:
     root.destroy()
 except Exception as e:
     print(f"Tkinter initialization error: {str(e)}")
+    import traceback
+    traceback.print_exc()
 """)
 
     # 更新 PyInstaller 参数
@@ -218,11 +219,12 @@ except Exception as e:
         '--noconfirm',
         '--clean',
         '--add-data=gui;gui',
+        '--add-data=utils;utils',
         '--add-data=config.conf.template;.',
         '--add-data=resources;resources',
-        '--add-data=utils;utils',  # 添加 utils 模块
         '--icon=resources/icon.ico',
         '--onefile',
+        '--debug=all',  # 添加调试信息
         '--hidden-import=tkinter',
         '--hidden-import=tkinter.ttk',
         '--hidden-import=PIL',
@@ -236,9 +238,9 @@ except Exception as e:
         '--hidden-import=rarfile',
         '--hidden-import=zipfile',
         '--hidden-import=utils.logger',
-        '--hidden-import=gui.main_window',  # 添加 GUI 模块导入
+        '--hidden-import=gui.main_window',
         '--hidden-import=gui.setup_window',
-        '--collect-all=gui',  # 收集所有 GUI 相关文件
+        '--collect-all=gui',
         '--runtime-hook=runtime_hook.py'
     ]
     
