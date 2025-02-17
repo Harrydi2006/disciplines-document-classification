@@ -131,14 +131,19 @@ def build():
     params = [
         'file_classifier.py',  # 主程序文件
         '--name=FileClassifier',  # 使用英文名称
-        '--noconsole',
-        '--windowed',
+        '--noconsole',          # 不显示控制台
+        '--windowed',           # 使用 GUI 模式
         '--noconfirm',
         '--clean',
-        '--add-data=gui;gui',
+        '--add-data=gui;gui',   # 添加 GUI 模块
+        '--add-data=config.conf.template;.',  # 添加配置模板
         '--icon=resources/icon.ico',
-        '--onefile',  # 打包成单个文件
+        '--onefile',            # 打包成单个文件
+        # 添加所有必要的导入
+        '--hidden-import=tkinter',
+        '--hidden-import=tkinter.ttk',
         '--hidden-import=PIL',
+        '--hidden-import=PIL._tkinter_finder',
         '--hidden-import=pytesseract',
         '--hidden-import=docx',
         '--hidden-import=PyPDF2',
@@ -147,7 +152,28 @@ def build():
         '--hidden-import=py7zr',
         '--hidden-import=rarfile',
         '--hidden-import=zipfile',
+        # 添加运行时钩子
+        '--runtime-hook=runtime_hook.py'
     ]
+    
+    # 创建运行时钩子文件
+    with open('runtime_hook.py', 'w', encoding='utf-8') as f:
+        f.write("""
+import os
+import sys
+import tkinter as tk
+
+# 设置正确的 DLL 搜索路径
+if hasattr(sys, '_MEIPASS'):
+    os.environ['TCL_LIBRARY'] = os.path.join(sys._MEIPASS, 'tcl')
+    os.environ['TK_LIBRARY'] = os.path.join(sys._MEIPASS, 'tk')
+
+# 修复 tkinter 标题
+root = tk.Tk()
+root.withdraw()
+root.title('文件分类助手')
+root.destroy()
+""")
     
     try:
         # 运行 PyInstaller
@@ -157,6 +183,10 @@ def build():
     except Exception as e:
         print(f"Build failed: {str(e)}")
         raise
+    finally:
+        # 清理临时文件
+        if os.path.exists('runtime_hook.py'):
+            os.remove('runtime_hook.py')
 
 if __name__ == "__main__":
     build() 

@@ -774,67 +774,16 @@ class FileClassifier:
 
 def main():
     try:
-        # 检查是否首次运行
-        from gui.setup_window import check_first_run, SetupWindow
+        # 加载配置
+        config = load_config()
         
-        # 创建 FileClassifier 实例来初始化配置
-        classifier = FileClassifier()
-        
-        # 只在首次运行时显示安装界面
-        if check_first_run():
-            logger.info("首次运行，启动安装程序...")
-            setup = SetupWindow()
-            setup.run()
-            
-            # 创建标记文件表示已安装
-            with open('.installed', 'w') as f:
-                f.write('installed')
-        
-        # 使用 FileClassifier 的配置
-        config = classifier.config
-        
-        # 确保所有必要的配置项都存在
-        required_sections = {
-            'API': ['host', 'api_key'],
-            'Model': ['model_name'],
-            'Paths': ['source_folder', 'target_folder'],
-            'Prompt': ['classification_prompt'],
-            'Features': ['enable_ocr', 'enable_audio', 'enable_archive'],
-            'Threading': ['max_workers'],
-            'OCR': ['tesseract_path'],
-            'Audio': ['ffmpeg_path']
-        }
-        
-        # 检查并修复配置
-        for section, keys in required_sections.items():
-            if section not in config:
-                config[section] = {}
-            for key in keys:
-                if key not in config[section]:
-                    if section == 'Paths':
-                        if key == 'source_folder':
-                            config[section][key] = str(Path.cwd() / 'source')
-                        elif key == 'target_folder':
-                            config[section][key] = str(Path.cwd() / 'target')
-                    else:
-                        config[section][key] = ''  # 设置空值
-        
-        # 保存修复后的配置
-        with open('config.conf', 'w', encoding='utf-8') as f:
-            config.write(f)
-        
-        # 创建必要的目录
-        Path(config['Paths']['source_folder']).mkdir(parents=True, exist_ok=True)
-        Path(config['Paths']['target_folder']).mkdir(parents=True, exist_ok=True)
-        
-        # 启动主窗口
-        from gui.main_window import MainWindow
+        # 创建主窗口
         window = MainWindow(config)
-        window.run()
         
+        # 运行主循环
+        window.run()
     except Exception as e:
-        logger.error(f"程序执行失败: {str(e)}", exc_info=True)
-        messagebox.showerror("错误", f"程序执行失败: {str(e)}")
+        print(f"Error: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
