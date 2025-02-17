@@ -127,6 +127,12 @@ def build():
     # 清理旧的构建文件
     clean_build()
     
+    # 查找 Tcl/Tk 库路径
+    import tkinter
+    tcl_path = os.path.dirname(tkinter.__file__)
+    tk_path = os.path.join(tcl_path, 'tk')
+    tcl_lib = os.path.join(tcl_path, 'tcl')
+    
     # PyInstaller 参数
     params = [
         'file_classifier.py',  # 主程序文件
@@ -137,6 +143,8 @@ def build():
         '--clean',
         '--add-data=gui;gui',   # 添加 GUI 模块
         '--add-data=config.conf.template;.',  # 添加配置模板
+        f'--add-data={tcl_lib};tcl',  # 添加 Tcl 库
+        f'--add-data={tk_path};tk',   # 添加 Tk 库
         '--icon=resources/icon.ico',
         '--onefile',            # 打包成单个文件
         # 添加所有必要的导入
@@ -167,12 +175,17 @@ import tkinter as tk
 if hasattr(sys, '_MEIPASS'):
     os.environ['TCL_LIBRARY'] = os.path.join(sys._MEIPASS, 'tcl')
     os.environ['TK_LIBRARY'] = os.path.join(sys._MEIPASS, 'tk')
+    os.environ['TCL_LIBRARY'] = os.path.join(sys._MEIPASS, 'tcl', 'tcl8.6')
+    os.environ['TK_LIBRARY'] = os.path.join(sys._MEIPASS, 'tk', 'tk8.6')
 
 # 修复 tkinter 标题
-root = tk.Tk()
-root.withdraw()
-root.title('文件分类助手')
-root.destroy()
+try:
+    root = tk.Tk()
+    root.withdraw()
+    root.title('文件分类助手')
+    root.destroy()
+except Exception:
+    pass
 """)
     
     try:
