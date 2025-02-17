@@ -19,7 +19,7 @@ sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') e
 
 def clean_build():
     """清理旧的构建文件"""
-    print("Cleaning old build files...")  # 使用英文输出
+    print("Cleaning old build files...")
     dirs_to_clean = ['build', 'dist']
     files_to_clean = ['*.spec']
     
@@ -129,9 +129,26 @@ def build():
     
     # 查找 Tcl/Tk 库路径
     import tkinter
-    tcl_path = os.path.dirname(tkinter.__file__)
-    tk_path = os.path.join(tcl_path, 'tk')
-    tcl_lib = os.path.join(tcl_path, 'tcl')
+    import _tkinter
+    tcl_tk_paths = []
+    
+    # 尝试多个可能的路径
+    possible_paths = [
+        os.path.dirname(tkinter.__file__),
+        os.path.dirname(_tkinter.__file__),
+        os.path.join(sys.prefix, 'tcl'),
+        os.path.join(sys.prefix, 'lib', 'tcl'),
+        os.path.join(sys.prefix, 'lib', 'tk'),
+    ]
+    
+    for base_path in possible_paths:
+        if os.path.exists(base_path):
+            # 查找 tcl*.dll 和 tk*.dll
+            for root, dirs, files in os.walk(base_path):
+                for file in files:
+                    if file.startswith(('tcl', 'tk')) and file.endswith('.dll'):
+                        dll_path = os.path.join(root, file)
+                        tcl_tk_paths.append((dll_path, '.'))
     
     # PyInstaller 参数
     params = [
@@ -143,8 +160,6 @@ def build():
         '--clean',
         '--add-data=gui;gui',   # 添加 GUI 模块
         '--add-data=config.conf.template;.',  # 添加配置模板
-        f'--add-data={tcl_lib};tcl',  # 添加 Tcl 库
-        f'--add-data={tk_path};tk',   # 添加 Tk 库
         '--icon=resources/icon.ico',
         '--onefile',            # 打包成单个文件
         # 添加所有必要的导入
@@ -164,6 +179,10 @@ def build():
         '--runtime-hook=runtime_hook.py'
     ]
     
+    # 添加找到的 Tcl/Tk DLL
+    for src, dst in tcl_tk_paths:
+        params.extend(['--add-binary', f'{src};{dst}'])
+    
     # 创建运行时钩子文件
     with open('runtime_hook.py', 'w', encoding='utf-8') as f:
         f.write("""
@@ -171,20 +190,14 @@ import os
 import sys
 import tkinter as tk
 
-# 设置正确的 DLL 搜索路径
-if hasattr(sys, '_MEIPASS'):
-    os.environ['TCL_LIBRARY'] = os.path.join(sys._MEIPASS, 'tcl')
-    os.environ['TK_LIBRARY'] = os.path.join(sys._MEIPASS, 'tk')
-    os.environ['TCL_LIBRARY'] = os.path.join(sys._MEIPASS, 'tcl', 'tcl8.6')
-    os.environ['TK_LIBRARY'] = os.path.join(sys._MEIPASS, 'tk', 'tk8.6')
-
 # 修复 tkinter 标题
 try:
     root = tk.Tk()
     root.withdraw()
     root.title('文件分类助手')
     root.destroy()
-except Exception:
+except Exception as e:
+    print(f"Tkinter initialization error: {str(e)}")
     pass
 """)
     
