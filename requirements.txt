@@ -11,11 +11,10 @@ rarfile==4.1
 tqdm==4.66.2
 
 # GUI 相关
-tkinter>=8.6
 pywin32==306
 
 # 打包相关
-pyinstaller>=6.3.0
+pyinstaller==6.3.0
 vosk==0.3.45  # 可选，用于离线语音识别
 
 # 文件处理
