@@ -13,6 +13,9 @@ on:
       - 'requirements.txt'
       - '.github/workflows/**'
 
+permissions:
+  contents: write     # 添加写入权限
+
 jobs:
   build:
     runs-on: windows-latest
