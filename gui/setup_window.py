@@ -47,11 +47,11 @@ class SetupWindow:
     mirrors = {
         'default': {
             'tesseract': 'https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-            'ffmpeg': 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z',  # 更新为 7z 格式
+            'ffmpeg': 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
         },
         'china': {
             'tesseract': 'https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-            'ffmpeg': 'https://mirror.ghproxy.com/https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z',  # 使用 ghproxy 加速
+            'ffmpeg': 'https://mirror.ghproxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
             'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
         }
     }
@@ -279,7 +279,7 @@ class SetupWindow:
             url = self.mirrors[mirror]['ffmpeg']
             
             # 下载文件
-            archive_path = self._download_file(
+            zip_path = self._download_file(
                 url,
                 self.ffmpeg_progress,
                 self.ffmpeg_label,
@@ -294,16 +294,16 @@ class SetupWindow:
                 self._add_log("删除旧版本 FFmpeg...")
                 shutil.rmtree(ffmpeg_dir)
             
-            # 使用 py7zr 解压 7z 文件
-            with py7zr.SevenZipFile(archive_path, mode='r') as z:
-                z.extractall('C:/')
-            
-            # 重命名目录
-            extracted_files = list(Path('C:/').glob('ffmpeg-*'))
-            if extracted_files:
-                extracted_files[0].rename(ffmpeg_dir)
-            else:
-                raise Exception("解压后未找到 FFmpeg 目录")
+            # 使用 zipfile 解压 zip 文件
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                root_dir = zip_ref.namelist()[0].split('/')[0]
+                self._add_log("解压 FFmpeg 文件...")
+                zip_ref.extractall('C:/')
+                
+                extracted_path = Path(f'C:/{root_dir}')
+                if extracted_path != ffmpeg_dir:
+                    self._add_log("重命名 FFmpeg 目录...")
+                    extracted_path.rename(ffmpeg_dir)
             
             # 环境变量设置
             ffmpeg_bin = str(ffmpeg_dir / 'bin')
