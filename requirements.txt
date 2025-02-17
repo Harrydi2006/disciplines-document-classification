@@ -21,5 +21,4 @@ vosk==0.3.45  # 可选，用于离线语音识别
 zipfile36==0.1.3
 
 # 工具库
-configparser==6.0.0
-pathlib==1.0.1 
+configparser==6.0.0 
