@@ -43,8 +43,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
-        pip install pillow pytesseract python-docx PyPDF2 SpeechRecognition pydub py7zr rarfile
+        pip install pyinstaller==6.3.0
     
     - name: Build EXE
       run: |
@@ -60,7 +59,7 @@ jobs:
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')  # 只在推送标签时创建发布
+      if: startsWith(github.ref, 'refs/tags/')
       with:
         name: FileClassifier ${{ env.VERSION }}
         files: |
