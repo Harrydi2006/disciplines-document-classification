@@ -4,9 +4,22 @@ import shutil
 import sys
 from pathlib import Path
 
+# 设置控制台输出编码
+if sys.platform.startswith('win'):
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetConsoleCP(65001)
+        kernel32.SetConsoleOutputCP(65001)
+    except:
+        pass
+
+# 确保输出使用 UTF-8 编码
+sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') else None
+
 def clean_build():
     """清理旧的构建文件"""
-    print("清理旧的构建文件...")
+    print("Cleaning old build files...")  # 使用英文输出
     dirs_to_clean = ['build', 'dist']
     files_to_clean = ['*.spec']
     
@@ -20,11 +33,11 @@ def clean_build():
 
 def copy_resources():
     """复制必要的资源文件到 dist 目录"""
-    print("复制资源文件...")
+    print("Copying resource files...")  # 使用英文输出
     dist_dir = Path('dist')
     
     # 创建基本目录结构
-    base_dir = dist_dir / '文件分类助手'
+    base_dir = dist_dir / 'FileClassifier'  # 使用英文名称
     base_dir.mkdir(exist_ok=True)
     
     # 创建必要的目录
@@ -36,14 +49,14 @@ def copy_resources():
     if Path('config.conf').exists():
         shutil.copy2('config.conf', base_dir)
     else:
-        print("警告: 未找到配置文件")
+        print("Warning: Configuration file not found")  # 使用英文输出
     
     # 复制可执行文件
-    if (dist_dir / '文件分类助手.exe').exists():
-        shutil.move(dist_dir / '文件分类助手.exe', base_dir / '文件分类助手.exe')
+    if (dist_dir / 'FileClassifier.exe').exists():
+        shutil.move(dist_dir / 'FileClassifier.exe', base_dir / 'FileClassifier.exe')
     
-    print("资源文件复制完成")
-    return base_dir  # 返回基本目录路径
+    print("Resource files copied")  # 使用英文输出
+    return base_dir
 
 def find_python_dll():
     """查找 Python DLL 文件"""
@@ -109,7 +122,7 @@ def find_python_dll():
 
 def build():
     """构建可执行文件"""
-    print("开始构建...")
+    print("Starting build process...")  # 使用英文输出
     
     # 清理旧的构建文件
     clean_build()
@@ -127,15 +140,14 @@ def build():
     # PyInstaller 参数
     params = [
         'file_classifier.py',  # 主程序文件
-        '--name=文件分类助手',  # 程序名称
-        '--noconsole',  # 不显示控制台窗口
-        '--windowed',  # 使用 GUI 模式
-        '--noconfirm',  # 覆盖现有文件
-        '--clean',  # 清理临时文件
-        '--add-data=gui;gui',  # 添加 GUI 模块
-        '--icon=resources/icon.ico',  # 程序图标（如果有）
-        '--onefile',  # 打包成单个文件
-        # 添加隐式导入
+        '--name=FileClassifier',  # 使用英文名称
+        '--noconsole',
+        '--windowed',
+        '--noconfirm',
+        '--clean',
+        '--add-data=gui;gui',
+        '--icon=resources/icon.ico',
+        '--onefile',
         '--hidden-import=PIL',
         '--hidden-import=pytesseract',
         '--hidden-import=docx',
@@ -159,28 +171,28 @@ def build():
         base_dir = copy_resources()
         
         # 创建 README.txt
-        readme_content = """文件分类助手
+        readme_content = """File Classifier
 
-使用说明：
-1. 运行 文件分类助手.exe
-2. 将需要分类的文件放入 source 文件夹
-3. 分类后的文件会自动移动到 target 文件夹的对应子目录中
-4. 日志文件保存在 logs 文件夹中
+Instructions:
+1. Run FileClassifier.exe
+2. Place files to be classified in the source folder
+3. Classified files will be moved to corresponding subdirectories in the target folder
+4. Log files are saved in the logs folder
 
-注意事项：
-- 首次运行时请按提示配置相关设置
-- 确保已安装必要的外部程序（Tesseract、FFmpeg等）
+Notes:
+- Configure settings on first run
+- Ensure required external programs (Tesseract, FFmpeg) are installed
 """
         
         with open(base_dir / 'README.txt', 'w', encoding='utf-8') as f:
             f.write(readme_content)
         
-        print("构建完成！")
-        print(f"\n程序包已生成在: {base_dir}")
-        print("请将整个文件夹复制到目标计算机使用")
+        print("Build completed successfully!")
+        print(f"\nProgram package generated at: {base_dir}")
+        print("Copy the entire folder to target computer for use")
         
     except Exception as e:
-        print(f"构建失败: {str(e)}")
+        print(f"Build failed: {str(e)}")
         raise
 
 if __name__ == "__main__":
