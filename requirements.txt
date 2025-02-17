@@ -1,16 +1,14 @@
 # 基本依赖
-requests>=2.31.0
-tqdm>=4.66.1
-configparser>=6.0.0
-Pillow>=10.1.0
-python-docx>=1.1.0
-PyPDF2>=3.0.0
-pytesseract>=0.3.10
-pydub>=0.25.1
-SpeechRecognition>=3.10.0
-py7zr>=0.20.8
-rarfile>=4.1
-python-magic-bin>=0.4.14
+requests
+pillow
+pytesseract
+python-docx
+PyPDF2
+SpeechRecognition
+pydub
+py7zr
+rarfile
+tqdm
 
 # GUI 相关
 # tkinter - 通常随 Python 安装

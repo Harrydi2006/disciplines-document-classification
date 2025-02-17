@@ -37,4 +37,5 @@ ENV/
 logs/*.log
 .installed
 config.conf
+config.conf[0-9]*
 !config.conf.template
