@@ -25,22 +25,22 @@ class SetupWindow:
     
     # 镜像地址
     FFMPEG_MIRRORS = [
-        'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',  # Gitee 镜像
-        'https://mirror.ghproxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',  # GitHub 加速镜像
-        'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'  # 原始地址
+        'https://bgithub.xyz/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',  # bgithub 镜像
+        'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',  # Gitee 备选
+        'https://mirror.ghproxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'  # ghproxy 备选
     ]
     
     TESSERACT_MIRRORS = [
-        "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe",
-        "https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe",
-        "https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe"
+        'https://bgithub.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # bgithub 镜像
+        'https://gitee.com/mirrors/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # Gitee 备选
+        'https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe'  # ghproxy 备选
     ]
     
     # 更新中文语言包下载地址
     TESSERACT_CHI_SIM_MIRRORS = [
-        "https://github.com/tesseract-ocr/tessdata/raw/4.1.0/chi_sim.traineddata",  # 使用稳定版本
-        "https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata",
-        "https://ghproxy.com/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata"
+        'https://bgithub.xyz/tesseract-ocr/tessdata/raw/4.1.0/chi_sim.traineddata',  # bgithub 镜像
+        'https://gitee.com/mirrors/tesseract/raw/master/tessdata/chi_sim.traineddata',  # Gitee 备选
+        'https://ghproxy.com/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata'  # ghproxy 备选
     ]
     
     # 更新镜像地址
@@ -50,10 +50,13 @@ class SetupWindow:
             'ffmpeg': 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
         },
         'china': {
-            'tesseract': 'https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+            'tesseract': [
+                'https://bgithub.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # bgithub 镜像
+                'https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # ghproxy 备选
+            ],
             'ffmpeg': [
-                'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',  # Gitee 镜像
-                'https://mirror.ghproxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',  # GitHub 加速镜像
+                'https://bgithub.xyz/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',  # bgithub 镜像
+                'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',  # Gitee 备选
             ],
             'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
         }
