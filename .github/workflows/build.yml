@@ -1,0 +1,42 @@
+name: Build EXE
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送版本标签时触发
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+        pip install pillow pytesseract python-docx PyPDF2 SpeechRecognition pydub py7zr rarfile
+    
+    - name: Build EXE
+      run: |
+        python build.py
+    
+    - name: Create ZIP Archive
+      run: |
+        cd dist
+        7z a -tzip 文件分类助手.zip 文件分类助手/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/文件分类助手.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
