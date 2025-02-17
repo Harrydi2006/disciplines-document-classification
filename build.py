@@ -190,18 +190,47 @@ def setup_environment():
             # 设置日志文件路径
             os.environ['LOG_DIR'] = log_dir
             
-            # 初始化 tkinter 根窗口
-            root = tk.Tk()
-            root.withdraw()
-            root.title('文件分类助手')
-            root.attributes('-alpha', 0)  # 完全透明
-            root.attributes('-topmost', True)  # 置顶
-            root.overrideredirect(True)  # 无边框
-            root.geometry('0x0+0+0')  # 设置大小为0
-            
-            # 保存根窗口引用
-            global _root
-            _root = root
+            # 初始化并隐藏 tkinter 根窗口
+            try:
+                # 在 Windows 上使用 win32gui 隐藏窗口
+                if sys.platform == 'win32':
+                    try:
+                        import win32gui
+                        import win32con
+                        
+                        def hide_tk_window(hwnd, extra):
+                            classname = win32gui.GetClassName(hwnd)
+                            title = win32gui.GetWindowText(hwnd)
+                            if 'tk' in classname.lower():
+                                win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+                        
+                        win32gui.EnumWindows(hide_tk_window, None)
+                    except ImportError:
+                        pass
+                
+                # 创建并配置根窗口
+                root = tk.Tk()
+                root.withdraw()
+                
+                # 设置窗口属性
+                root.title('文件分类助手')
+                root.attributes('-alpha', 0)
+                root.attributes('-topmost', True)
+                root.overrideredirect(True)
+                root.geometry('0x0+0+0')
+                
+                # 在 Windows 上额外设置
+                if sys.platform == 'win32':
+                    root.wm_attributes('-toolwindow', True)
+                    
+                # 保存根窗口引用
+                global _root
+                _root = root
+                
+            except Exception as e:
+                print(f"Tkinter initialization error: {str(e)}")
+                import traceback
+                traceback.print_exc()
             
     except Exception as e:
         print(f"Error in setup_environment: {str(e)}")
@@ -226,7 +255,7 @@ setup_environment()
         '--add-data=resources;resources',
         '--icon=resources/icon.ico',
         '--onefile',
-        '--debug=all',  # 添加调试信息
+        '--debug=all',
         '--hidden-import=tkinter',
         '--hidden-import=tkinter.ttk',
         '--hidden-import=PIL',
@@ -242,6 +271,7 @@ setup_environment()
         '--hidden-import=utils.logger',
         '--hidden-import=gui.main_window',
         '--hidden-import=gui.setup_window',
+        '--hidden-import=win32gui',
         '--collect-all=gui',
         '--runtime-hook=runtime_hook.py'
     ]
