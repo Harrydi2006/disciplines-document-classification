@@ -1,0 +1,28 @@
+[API]
+host = https://ark.cn-beijing.volces.com/api/v3
+api_key = 3c086b60-8b33-4389-9651-9e08e0e5cb44
+
+[Model]
+model_name = ep-20250215220359-mghkp
+
+[Paths]
+source_folder = C:/新建文件夹 (2)
+target_folder = C:/新建文件夹 (2)/新建文件夹
+
+[Prompt]
+classification_prompt = 请判断以下内容属于哪个学科（语文、数学、英语、物理、化学、生物）？如果无法判断，请回答"未知"。内容：
+
+[Features]
+enable_ocr = True
+enable_audio = True
+enable_archive = True
+
+[Threading]
+max_workers = 4
+
+[OCR]
+tesseract_path = C:\Program Files\Tesseract-OCR\tesseract.exe
+
+[Audio]
+ffmpeg_path = C:\ffmpeg\bin\ffmpeg.exe
+

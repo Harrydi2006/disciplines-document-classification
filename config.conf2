@@ -1,0 +1,28 @@
+[API]
+host = https://ark.cn-beijing.volces.com/api/v3
+api_key = 
+
+[Model]
+model_name = ep-20250215220359-mghkp
+
+[Paths]
+source_folder = C:\Users\35024\PycharmProjects\PythonProject1\.venv\source
+target_folder = C:\Users\35024\PycharmProjects\PythonProject1\.venv\target
+
+[Prompt]
+classification_prompt = 请判断以下内容属于哪个学科（语文、数学、英语、物理、化学、生物）？如果无法判断，请回答"未知"。内容：
+
+[Features]
+enable_ocr = true
+enable_audio = true
+enable_archive = true
+
+[Threading]
+max_workers = 4
+
+[OCR]
+tesseract_path = C:\Program Files\Tesseract-OCR\tesseract.exe
+
+[Audio]
+ffmpeg_path = C:\ffmpeg\bin\ffmpeg.exe
+
