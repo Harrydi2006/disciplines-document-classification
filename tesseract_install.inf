@@ -1,6 +1,0 @@
-[Setup]
-Lang=chi_sim
-Dir=C:\Program Files\Tesseract-OCR
-Group=Tesseract-OCR
-NoIcons=0
-Tasks=addpath

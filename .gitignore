@@ -26,6 +26,8 @@ wheels/
 env/
 venv/
 ENV/
+Scripts/
+pyvenv.cfg
 
 # IDE
 .idea/
@@ -34,8 +36,16 @@ ENV/
 *.swo
 
 # 项目特定
-logs/*.log
-.installed
+logs/
+target/
+models/
+*.log
+*.spec
 config.conf
 config.conf[0-9]*
+tesseract_install.inf
 !config.conf.template
+
+# 构建输出
+dist/
+build/
