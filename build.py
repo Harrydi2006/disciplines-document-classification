@@ -150,20 +150,79 @@ def build():
                         dll_path = os.path.join(root, file)
                         tcl_tk_paths.append((dll_path, '.'))
     
-    # PyInstaller 参数
+    # 创建运行时钩子文件
+    with open('runtime_hook.py', 'w', encoding='utf-8') as f:
+        f.write("""
+import os
+import sys
+import tkinter as tk
+
+def setup_environment():
+    try:
+        print("Setting up environment...")
+        if hasattr(sys, '_MEIPASS'):
+            base_path = sys._MEIPASS
+            print(f"MEIPASS path: {base_path}")
+            
+            # 设置资源目录
+            os.environ['RESOURCE_DIR'] = base_path
+            print(f"Resource dir set to: {base_path}")
+            
+            # 创建必要的目录
+            for dir_name in ['logs', 'source', 'target']:
+                dir_path = os.path.join(os.getcwd(), dir_name)
+                os.makedirs(dir_path, exist_ok=True)
+                print(f"Created directory: {dir_path}")
+            
+            # 处理配置文件
+            config_template = os.path.join(base_path, 'config.conf.template')
+            config_file = 'config.conf'
+            if not os.path.exists(config_file) and os.path.exists(config_template):
+                import shutil
+                shutil.copy2(config_template, config_file)
+                print(f"Copied config template to: {config_file}")
+            
+            # 添加 GUI 模块路径
+            gui_path = os.path.join(base_path, 'gui')
+            if gui_path not in sys.path:
+                sys.path.insert(0, gui_path)
+                print(f"Added GUI path to sys.path: {gui_path}")
+            
+            # 添加主目录到 sys.path
+            if base_path not in sys.path:
+                sys.path.insert(0, base_path)
+                print(f"Added base path to sys.path: {base_path}")
+    except Exception as e:
+        print(f"Error in setup_environment: {str(e)}")
+        raise
+
+# 设置环境
+setup_environment()
+
+# 修复 tkinter 标题
+try:
+    root = tk.Tk()
+    root.withdraw()
+    root.title('文件分类助手')
+    root.destroy()
+except Exception as e:
+    print(f"Tkinter initialization error: {str(e)}")
+""")
+
+    # 更新 PyInstaller 参数
     params = [
-        'file_classifier.py',  # 主程序文件
-        '--name=FileClassifier',  # 使用英文名称
-        '--noconsole',          # 不显示控制台
-        '--windowed',           # 使用 GUI 模式
+        'file_classifier.py',
+        '--name=FileClassifier',
+        '--noconsole',
+        '--windowed',
         '--noconfirm',
         '--clean',
-        '--add-data=gui;gui',   # 添加 GUI 模块
-        '--add-data=config.conf.template;.',  # 添加配置模板
-        '--add-data=resources;resources',  # 添加资源文件
+        '--add-data=gui;gui',
+        '--add-data=config.conf.template;.',
+        '--add-data=resources;resources',
+        '--add-data=utils;utils',  # 添加 utils 模块
         '--icon=resources/icon.ico',
-        '--onefile',            # 打包成单个文件
-        # 添加所有必要的导入
+        '--onefile',
         '--hidden-import=tkinter',
         '--hidden-import=tkinter.ttk',
         '--hidden-import=PIL',
@@ -176,43 +235,16 @@ def build():
         '--hidden-import=py7zr',
         '--hidden-import=rarfile',
         '--hidden-import=zipfile',
-        '--hidden-import=utils.logger',  # 添加日志模块
-        # 添加运行时钩子
+        '--hidden-import=utils.logger',
+        '--hidden-import=gui.main_window',  # 添加 GUI 模块导入
+        '--hidden-import=gui.setup_window',
+        '--collect-all=gui',  # 收集所有 GUI 相关文件
         '--runtime-hook=runtime_hook.py'
     ]
     
     # 添加找到的 Tcl/Tk DLL
     for src, dst in tcl_tk_paths:
         params.extend(['--add-binary', f'{src};{dst}'])
-    
-    # 创建运行时钩子文件
-    with open('runtime_hook.py', 'w', encoding='utf-8') as f:
-        f.write("""
-import os
-import sys
-import tkinter as tk
-
-# 设置必要的环境变量
-if hasattr(sys, '_MEIPASS'):
-    # 设置资源目录
-    os.environ['RESOURCE_DIR'] = os.path.join(sys._MEIPASS)
-    # 创建必要的目录
-    for dir_name in ['logs', 'source', 'target']:
-        os.makedirs(os.path.join(os.getcwd(), dir_name), exist_ok=True)
-    # 如果配置文件不存在，复制模板
-    if not os.path.exists('config.conf') and os.path.exists(os.path.join(sys._MEIPASS, 'config.conf.template')):
-        import shutil
-        shutil.copy2(os.path.join(sys._MEIPASS, 'config.conf.template'), 'config.conf')
-
-# 修复 tkinter 标题
-try:
-    root = tk.Tk()
-    root.withdraw()
-    root.title('文件分类助手')
-    root.destroy()
-except Exception as e:
-    print(f"Tkinter initialization error: {str(e)}")
-""")
     
     try:
         # 运行 PyInstaller

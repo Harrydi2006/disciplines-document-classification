@@ -15,6 +15,18 @@ import shutil
 from tkinter import messagebox
 import subprocess
 
+# 添加必要的路径
+if getattr(sys, 'frozen', False):
+    # 运行于 PyInstaller 打包后的环境
+    base_path = sys._MEIPASS
+    if base_path not in sys.path:
+        sys.path.insert(0, base_path)
+else:
+    # 运行于开发环境
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    if base_path not in sys.path:
+        sys.path.insert(0, base_path)
+
 # 设置日志记录器
 logger = setup_logger('file_classifier', 'file_classifier.log')
 
