@@ -39,9 +39,10 @@ class SetupWindow:
     
     # 更新中文语言包下载地址
     TESSERACT_CHI_SIM_MIRRORS = [
-        'https://bgithub.xyz/tesseract-ocr/tessdata/raw/4.1.0/chi_sim.traineddata',  # bgithub 镜像
-        'https://gitee.com/mirrors/tesseract/raw/master/tessdata/chi_sim.traineddata',  # Gitee 备选
-        'https://ghproxy.com/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata'  # ghproxy 备选
+        'https://raw.fastgit.org/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata',
+        'https://cdn.jsdelivr.net/gh/tesseract-ocr/tessdata@4.1.0/chi_sim.traineddata',
+        'https://ghproxy.net/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata',
+        'https://gitee.com/mirrors/tesseract/raw/master/tessdata/chi_sim.traineddata',
     ]
     
     # 更新镜像地址
@@ -56,24 +57,21 @@ class SetupWindow:
         'china': {
             'tesseract': [
                 # 国内镜像
-                'https://mirrors.aliyun.com/github-release/UB-Mannheim/tesseract/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://mirrors.tencent.com/github-release/UB-Mannheim/tesseract/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                # GitHub 加速镜像
-                'https://bgithub.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://kkgithub.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://gitclone.com/github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://github.ur1.fun/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                # 文件加速服务
-                'https://moeyy.cn/gh-proxy/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://ghp.ci/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://download.fastgit.org/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://hub.fastgit.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
                 'https://ghproxy.net/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                # 备用下载地址
+                'https://raw.fastgit.org/UB-Mannheim/tesseract/master/installer/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://cdn.jsdelivr.net/gh/UB-Mannheim/tesseract@master/installer/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                # 百度网盘镜像（如果有的话）
+                'https://pan.baidu.com/s/1xxx',  # 需要替换为实际的分享链接
+                # 阿里云 OSS 镜像（如果有的话）
+                'https://your-bucket.oss-cn-hangzhou.aliyuncs.com/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
             ],
             'ffmpeg': [
                 'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',
                 'https://mirrors.cloud.tencent.com/ffmpeg/ffmpeg-master-latest-win64-gpl.zip',
                 'https://mirrors.aliyun.com/ffmpeg/ffmpeg-master-latest-win64-gpl.zip',
-                'https://bgithub.xyz/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
-                'https://kkgithub.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
             ],
             'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
         }
