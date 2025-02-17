@@ -45,6 +45,8 @@ jobs:
         python -m pip uninstall -y pathlib  # 先卸载 pathlib
         pip install --no-cache-dir -r requirements.txt || (echo "Failed to install dependencies" && exit 1)
         pip install --no-cache-dir pyinstaller==6.3.0 || (echo "Failed to install PyInstaller" && exit 1)
+        python -m pip install --upgrade pywin32==306  # 确保 pywin32 正确安装
+        python -c "import win32gui" || (python Scripts/pywin32_postinstall.py -install && exit 1)  # 运行后安装脚本
     
     - name: Build EXE
       run: |

@@ -11,6 +11,7 @@ rarfile==4.2
 tqdm==4.66.1
 
 # GUI 相关
+pywin32==306
 pywin32-ctypes==0.2.3
 
 # 打包相关
