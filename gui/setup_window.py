@@ -13,6 +13,8 @@ import time
 import tkinter.messagebox as messagebox
 import logging
 from concurrent.futures import ThreadPoolExecutor
+import json
+import py7zr
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,19 @@ class SetupWindow:
         "https://ghproxy.com/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata"
     ]
     
+    # 更新镜像地址
+    mirrors = {
+        'default': {
+            'tesseract': 'https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+            'ffmpeg': 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z',  # 更新为 7z 格式
+        },
+        'china': {
+            'tesseract': 'https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+            'ffmpeg': 'https://mirror.ghproxy.com/https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z',  # 使用 ghproxy 加速
+            'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
+        }
+    }
+    
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("文件分类助手 - 首次运行设置")
@@ -55,18 +70,6 @@ class SetupWindow:
         # 设置窗口样式
         self.style = ttk.Style()
         self.style.configure('Horizontal.TProgressbar', thickness=20)
-        
-        self.mirrors = {
-            'default': {
-                'tesseract': 'https://github.com/UB-Mannheim/tesseract/wiki/Tesseract-at-UB-Mannheim',
-                'ffmpeg': 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z',
-            },
-            'china': {
-                'tesseract': 'https://gitee.com/mirrors/tesseract/releases',
-                'ffmpeg': 'https://mirrors.tuna.tsinghua.edu.cn/ffmpeg/windows/ffmpeg-release-full.7z',
-                'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
-            }
-        }
         
         self._init_ui()
         self._center_window()
@@ -167,10 +170,12 @@ class SetupWindow:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
         
-    def _download_file(self, urls, progress_bar, status_label, name):
+    def _download_file(self, url, progress_bar, status_label, name):
         """从多个镜像下载文件，带重试功能"""
-        if isinstance(urls, str):
-            urls = [urls]
+        if isinstance(url, str):
+            urls = [url]
+        else:
+            urls = url
             
         downloads_dir = Path('downloads')
         downloads_dir.mkdir(exist_ok=True)
@@ -178,6 +183,7 @@ class SetupWindow:
         for url in urls:
             try:
                 status_label.config(text=f"{name}: 正在从 {url.split('/')[2]} 下载...")
+                self._add_log(f"尝试从 {url} 下载...")
                 
                 response = requests.get(url, stream=True)
                 total_size = int(response.headers.get('content-length', 0))
@@ -196,10 +202,11 @@ class SetupWindow:
                         progress_bar['value'] = downloaded
                         self.root.update()
                 
+                self._add_log(f"{name} 下载完成")
                 return file_path
                 
             except Exception as e:
-                status_label.config(text=f"{name}: 从 {url.split('/')[2]} 下载失败 - {str(e)}")
+                self._add_log(f"从 {url} 下载失败: {str(e)}")
                 continue
         
         raise Exception(f"所有镜像下载失败")
@@ -267,9 +274,13 @@ class SetupWindow:
             self._add_log("开始安装 FFmpeg...")
             self.ffmpeg_label.config(text="FFmpeg: 准备下载...")
             
+            # 选择最佳镜像源
+            mirror = self.select_best_mirror()
+            url = self.mirrors[mirror]['ffmpeg']
+            
             # 下载文件
-            zip_path = self._download_file(
-                self.FFMPEG_MIRRORS,
+            archive_path = self._download_file(
+                url,
                 self.ffmpeg_progress,
                 self.ffmpeg_label,
                 "FFmpeg"
@@ -283,15 +294,16 @@ class SetupWindow:
                 self._add_log("删除旧版本 FFmpeg...")
                 shutil.rmtree(ffmpeg_dir)
             
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                root_dir = zip_ref.namelist()[0].split('/')[0]
-                self._add_log("解压 FFmpeg 文件...")
-                zip_ref.extractall('C:/')
-                
-                extracted_path = Path(f'C:/{root_dir}')
-                if extracted_path != ffmpeg_dir:
-                    self._add_log("重命名 FFmpeg 目录...")
-                    extracted_path.rename(ffmpeg_dir)
+            # 使用 py7zr 解压 7z 文件
+            with py7zr.SevenZipFile(archive_path, mode='r') as z:
+                z.extractall('C:/')
+            
+            # 重命名目录
+            extracted_files = list(Path('C:/').glob('ffmpeg-*'))
+            if extracted_files:
+                extracted_files[0].rename(ffmpeg_dir)
+            else:
+                raise Exception("解压后未找到 FFmpeg 目录")
             
             # 环境变量设置
             ffmpeg_bin = str(ffmpeg_dir / 'bin')
@@ -599,10 +611,41 @@ class SetupWindow:
             return float('inf')
         return float('inf')
 
+    def check_is_china_ip(self):
+        """检查是否为中国 IP"""
+        try:
+            # 使用 ipapi.co 检查 IP 归属地
+            response = requests.get('https://ipapi.co/json/', timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                country_code = data.get('country_code')
+                self._add_log(f"检测到 IP 归属地: {data.get('country_name', '未知')}")
+                return country_code == 'CN'
+        except Exception as e:
+            self._add_log(f"IP 归属地检测失败: {str(e)}")
+            
+            # 备用方案：使用 cip.cc
+            try:
+                response = requests.get('http://cip.cc', timeout=5)
+                if response.status_code == 200 and '中国' in response.text:
+                    self._add_log("备用检测确认为中国 IP")
+                    return True
+            except Exception as e2:
+                self._add_log(f"备用 IP 检测也失败: {str(e2)}")
+        
+        return False
+
     def select_best_mirror(self):
         """选择最佳镜像源"""
-        self._add_log("正在测试镜像源连接速度...")
+        self._add_log("正在检测网络环境...")
         
+        # 首先检查是否为中国 IP
+        if self.check_is_china_ip():
+            self._add_log("检测到中国 IP，将优先使用国内镜像")
+            return 'china'
+        
+        # 如果不是中国 IP，测试镜像速度
+        self._add_log("正在测试镜像源连接速度...")
         test_urls = {
             'default': 'https://github.com',
             'china': 'https://gitee.com'
