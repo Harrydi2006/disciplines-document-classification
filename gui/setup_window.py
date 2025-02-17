@@ -23,17 +23,18 @@ class SetupWindow:
     FFMPEG_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
     TESSERACT_URL = "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe"
     
-    # 镜像地址
-    FFMPEG_MIRRORS = [
-        'https://bgithub.xyz/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',  # bgithub 镜像
-        'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',  # Gitee 备选
-        'https://mirror.ghproxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'  # ghproxy 备选
-    ]
-    
-    TESSERACT_MIRRORS = [
-        'https://bgithub.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # bgithub 镜像
-        'https://gitee.com/mirrors/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # Gitee 备选
-        'https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe'  # ghproxy 备选
+    # GitHub 镜像加速服务
+    GITHUB_MIRRORS = [
+        'https://bgithub.xyz',
+        'https://kkgithub.com',
+        'https://gitclone.com',
+        'https://github.ur1.fun',
+        'https://moeyy.cn/gh-proxy/',
+        'https://ghp.ci/',
+        'https://gh-proxy.com/',
+        'https://ghproxy.net/',
+        'https://ghproxy.homeboyc.cn/',
+        'http://toolwa.com/github/'
     ]
     
     # 更新中文语言包下载地址
@@ -46,17 +47,33 @@ class SetupWindow:
     # 更新镜像地址
     mirrors = {
         'default': {
-            'tesseract': 'https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+            'tesseract': [
+                'https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe'
+            ],
             'ffmpeg': 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
         },
         'china': {
             'tesseract': [
-                'https://bgithub.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # bgithub 镜像
-                'https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',  # ghproxy 备选
+                # 国内镜像
+                'https://mirrors.aliyun.com/github-release/UB-Mannheim/tesseract/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://mirrors.tencent.com/github-release/UB-Mannheim/tesseract/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                # GitHub 加速镜像
+                'https://bgithub.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://kkgithub.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://gitclone.com/github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://github.ur1.fun/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                # 文件加速服务
+                'https://moeyy.cn/gh-proxy/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://ghp.ci/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
+                'https://ghproxy.net/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
             ],
             'ffmpeg': [
-                'https://bgithub.xyz/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',  # bgithub 镜像
-                'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',  # Gitee 备选
+                'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',
+                'https://mirrors.cloud.tencent.com/ffmpeg/ffmpeg-master-latest-win64-gpl.zip',
+                'https://mirrors.aliyun.com/ffmpeg/ffmpeg-master-latest-win64-gpl.zip',
+                'https://bgithub.xyz/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
+                'https://kkgithub.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
             ],
             'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
         }
@@ -176,47 +193,15 @@ class SetupWindow:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
         
-    def _download_file(self, url, progress_bar, status_label, name):
-        """从多个镜像下载文件，带重试功能"""
-        if isinstance(url, str):
-            urls = [url]
-        else:
-            urls = url
-            
-        downloads_dir = Path('downloads')
-        downloads_dir.mkdir(exist_ok=True)
-        
-        for url in urls:
-            try:
-                status_label.config(text=f"{name}: 正在从 {url.split('/')[2]} 下载...")
-                self._add_log(f"尝试从 {url} 下载...")
-                
-                response = requests.get(url, stream=True)
-                total_size = int(response.headers.get('content-length', 0))
-                
-                if response.status_code != 200:
-                    raise requests.RequestException(f"HTTP {response.status_code}")
-                
-                file_path = downloads_dir / url.split('/')[-1]
-                progress_bar['maximum'] = total_size
-                
-                with open(file_path, 'wb') as f:
-                    downloaded = 0
-                    for data in response.iter_content(chunk_size=8192):
-                        downloaded += len(data)
-                        f.write(data)
-                        progress_bar['value'] = downloaded
-                        self.root.update()
-                
-                self._add_log(f"{name} 下载完成")
-                return file_path
-                
-            except Exception as e:
-                self._add_log(f"从 {url} 下载失败: {str(e)}")
-                continue
-        
-        raise Exception(f"所有镜像下载失败")
-            
+    def _download_file(self, urls, progress_bar, status_label, name):
+        """从最快的镜像下载文件"""
+        try:
+            url = self.select_fastest_mirror(urls, name)
+            return self._download_from_url(url, progress_bar, status_label, name)
+        except Exception as e:
+            self._add_log(f"下载 {name} 失败: {str(e)}")
+            raise
+
     def _check_ffmpeg(self) -> bool:
         """检查 FFmpeg 是否已安装"""
         try:
@@ -396,7 +381,7 @@ class SetupWindow:
             
             # 下载安装程序
             exe_path = self._download_file(
-                self.TESSERACT_MIRRORS,
+                self.mirrors['china']['tesseract'],
                 self.tesseract_progress,
                 self.tesseract_label,
                 "Tesseract"
@@ -723,6 +708,35 @@ class SetupWindow:
         except Exception as e:
             self._add_log(f"下载 {filename} 失败: {str(e)}")
             raise
+
+    def select_fastest_mirror(self, urls, name="文件"):
+        """选择最快的镜像"""
+        if isinstance(urls, str):
+            urls = [urls]
+            
+        self._add_log(f"正在测试 {name} 的下载速度...")
+        results = []
+        
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(self.check_connection, url): url for url in urls}
+            
+            for future in futures:
+                url = futures[future]
+                try:
+                    speed = future.result()
+                    if speed != float('inf'):
+                        results.append((url, speed))
+                        self._add_log(f"镜像 {url.split('/')[2]} 响应时间: {speed:.2f}秒")
+                except Exception as e:
+                    self._add_log(f"测试镜像 {url.split('/')[2]} 失败: {str(e)}")
+        
+        if not results:
+            raise Exception(f"所有 {name} 镜像都无法访问")
+            
+        # 选择最快的镜像
+        fastest_url = min(results, key=lambda x: x[1])[0]
+        self._add_log(f"选择最快的镜像: {fastest_url.split('/')[2]}")
+        return fastest_url
 
 def check_first_run() -> bool:
     """检查是否首次运行"""
