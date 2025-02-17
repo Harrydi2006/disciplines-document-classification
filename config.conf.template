@@ -1,0 +1,27 @@
+[API]
+host = 
+api_key = 
+
+[Model]
+model_name = 
+
+[Paths]
+source_folder = 
+target_folder = 
+
+[Prompt]
+classification_prompt = 请判断以下内容属于哪个学科（语文、数学、英语、物理、化学、生物）？如果无法判断，请回答"未知"。内容：
+
+[Features]
+enable_ocr = True
+enable_audio = True
+enable_archive = True
+
+[Threading]
+max_workers = 4
+
+[OCR]
+tesseract_path = C:\Program Files\Tesseract-OCR\tesseract.exe
+
+[Audio]
+ffmpeg_path = C:\ffmpeg\bin\ffmpeg.exe 
