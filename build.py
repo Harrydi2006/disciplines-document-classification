@@ -160,6 +160,7 @@ def build():
         '--clean',
         '--add-data=gui;gui',   # 添加 GUI 模块
         '--add-data=config.conf.template;.',  # 添加配置模板
+        '--add-data=resources;resources',  # 添加资源文件
         '--icon=resources/icon.ico',
         '--onefile',            # 打包成单个文件
         # 添加所有必要的导入
@@ -175,6 +176,7 @@ def build():
         '--hidden-import=py7zr',
         '--hidden-import=rarfile',
         '--hidden-import=zipfile',
+        '--hidden-import=utils.logger',  # 添加日志模块
         # 添加运行时钩子
         '--runtime-hook=runtime_hook.py'
     ]
@@ -190,6 +192,18 @@ import os
 import sys
 import tkinter as tk
 
+# 设置必要的环境变量
+if hasattr(sys, '_MEIPASS'):
+    # 设置资源目录
+    os.environ['RESOURCE_DIR'] = os.path.join(sys._MEIPASS)
+    # 创建必要的目录
+    for dir_name in ['logs', 'source', 'target']:
+        os.makedirs(os.path.join(os.getcwd(), dir_name), exist_ok=True)
+    # 如果配置文件不存在，复制模板
+    if not os.path.exists('config.conf') and os.path.exists(os.path.join(sys._MEIPASS, 'config.conf.template')):
+        import shutil
+        shutil.copy2(os.path.join(sys._MEIPASS, 'config.conf.template'), 'config.conf')
+
 # 修复 tkinter 标题
 try:
     root = tk.Tk()
@@ -198,7 +212,6 @@ try:
     root.destroy()
 except Exception as e:
     print(f"Tkinter initialization error: {str(e)}")
-    pass
 """)
     
     try:
