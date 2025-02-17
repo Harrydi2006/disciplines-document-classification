@@ -801,9 +801,12 @@ def main():
         logger = logging.getLogger('file_classifier')
         logger.info("程序启动")
         
+        # 创建 FileClassifier 实例
+        classifier = FileClassifier()
+        
         # 创建主窗口
         from gui.main_window import MainWindow
-        window = MainWindow()
+        window = MainWindow(classifier.config)
         
         # 运行主循环
         window.run()
