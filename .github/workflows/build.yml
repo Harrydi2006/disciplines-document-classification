@@ -39,12 +39,13 @@ jobs:
     - name: Create ZIP Archive
       run: |
         cd dist
-        7z a -tzip 文件分类助手.zip 文件分类助手/
+        dir
+        7z a -tzip FileClassifier.zip FileClassifier\*
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/文件分类助手.zip
+          dist/FileClassifier.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
