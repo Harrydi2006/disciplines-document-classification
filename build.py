@@ -122,20 +122,10 @@ def find_python_dll():
 
 def build():
     """构建可执行文件"""
-    print("Starting build process...")  # 使用英文输出
+    print("Starting build process...")
     
     # 清理旧的构建文件
     clean_build()
-    
-    # 查找 Python DLL
-    python_dll = find_python_dll()
-    if not python_dll:
-        print("警告: 未找到 Python DLL 文件")
-        if not input("是否继续构建？(y/n): ").lower().startswith('y'):
-            print("构建已取消")
-            return
-    else:
-        print(f"找到 Python DLL: {python_dll}")
     
     # PyInstaller 参数
     params = [
@@ -147,7 +137,7 @@ def build():
         '--clean',
         '--add-data=gui;gui',
         '--icon=resources/icon.ico',
-        '--onefile',
+        '--onefile',  # 打包成单个文件
         '--hidden-import=PIL',
         '--hidden-import=pytesseract',
         '--hidden-import=docx',
@@ -159,37 +149,10 @@ def build():
         '--hidden-import=zipfile',
     ]
     
-    # 添加 Python DLL
-    if python_dll:
-        params.extend(['--add-binary', f'{python_dll};.'])
-    
     try:
         # 运行 PyInstaller
         PyInstaller.__main__.run(params)
-        
-        # 复制资源文件并获取目标目录
-        base_dir = copy_resources()
-        
-        # 创建 README.txt
-        readme_content = """File Classifier
-
-Instructions:
-1. Run FileClassifier.exe
-2. Place files to be classified in the source folder
-3. Classified files will be moved to corresponding subdirectories in the target folder
-4. Log files are saved in the logs folder
-
-Notes:
-- Configure settings on first run
-- Ensure required external programs (Tesseract, FFmpeg) are installed
-"""
-        
-        with open(base_dir / 'README.txt', 'w', encoding='utf-8') as f:
-            f.write(readme_content)
-        
         print("Build completed successfully!")
-        print(f"\nProgram package generated at: {base_dir}")
-        print("Copy the entire folder to target computer for use")
         
     except Exception as e:
         print(f"Build failed: {str(e)}")

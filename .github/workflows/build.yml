@@ -39,16 +39,10 @@ jobs:
       run: |
         python build.py
     
-    - name: Create ZIP Archive
-      run: |
-        cd dist
-        dir
-        7z a -tzip FileClassifier.zip FileClassifier\*
-    
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/FileClassifier.zip
+          dist/FileClassifier.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
