@@ -127,29 +127,6 @@ def build():
     # 清理旧的构建文件
     clean_build()
     
-    # 查找 Tcl/Tk 库路径
-    import tkinter
-    import _tkinter
-    tcl_tk_paths = []
-    
-    # 尝试多个可能的路径
-    possible_paths = [
-        os.path.dirname(tkinter.__file__),
-        os.path.dirname(_tkinter.__file__),
-        os.path.join(sys.prefix, 'tcl'),
-        os.path.join(sys.prefix, 'lib', 'tcl'),
-        os.path.join(sys.prefix, 'lib', 'tk'),
-    ]
-    
-    for base_path in possible_paths:
-        if os.path.exists(base_path):
-            # 查找 tcl*.dll 和 tk*.dll
-            for root, dirs, files in os.walk(base_path):
-                for file in files:
-                    if file.startswith(('tcl', 'tk')) and file.endswith('.dll'):
-                        dll_path = os.path.join(root, file)
-                        tcl_tk_paths.append((dll_path, '.'))
-    
     # 创建运行时钩子文件
     with open('runtime_hook.py', 'w', encoding='utf-8') as f:
         f.write("""
@@ -190,47 +167,19 @@ def setup_environment():
             # 设置日志文件路径
             os.environ['LOG_DIR'] = log_dir
             
-            # 初始化并隐藏 tkinter 根窗口
-            try:
-                # 在 Windows 上使用 win32gui 隐藏窗口
-                if sys.platform == 'win32':
-                    try:
-                        import win32gui
-                        import win32con
-                        
-                        def hide_tk_window(hwnd, extra):
-                            classname = win32gui.GetClassName(hwnd)
-                            title = win32gui.GetWindowText(hwnd)
-                            if 'tk' in classname.lower():
-                                win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
-                        
-                        win32gui.EnumWindows(hide_tk_window, None)
-                    except ImportError:
-                        pass
-                
-                # 创建并配置根窗口
-                root = tk.Tk()
-                root.withdraw()
-                
-                # 设置窗口属性
-                root.title('文件分类助手')
-                root.attributes('-alpha', 0)
-                root.attributes('-topmost', True)
-                root.overrideredirect(True)
-                root.geometry('0x0+0+0')
-                
-                # 在 Windows 上额外设置
-                if sys.platform == 'win32':
-                    root.wm_attributes('-toolwindow', True)
-                    
-                # 保存根窗口引用
-                global _root
-                _root = root
-                
-            except Exception as e:
-                print(f"Tkinter initialization error: {str(e)}")
-                import traceback
-                traceback.print_exc()
+            # 初始化 tkinter 根窗口
+            root = tk.Tk()
+            root.withdraw()
+            root.title('文件分类助手')
+            root.attributes('-alpha', 0)
+            root.attributes('-topmost', True)
+            root.overrideredirect(True)
+            root.geometry('0x0+0+0')
+            root.wm_attributes('-toolwindow', True)
+            
+            # 保存根窗口引用
+            global _root
+            _root = root
             
     except Exception as e:
         print(f"Error in setup_environment: {str(e)}")
@@ -241,7 +190,7 @@ def setup_environment():
 setup_environment()
 """)
 
-    # 更新 PyInstaller 参数
+    # PyInstaller 参数
     params = [
         'file_classifier.py',
         '--name=FileClassifier',
@@ -273,8 +222,35 @@ setup_environment()
         '--hidden-import=gui.setup_window',
         '--hidden-import=win32gui',
         '--collect-all=gui',
-        '--runtime-hook=runtime_hook.py'
+        '--runtime-hook=runtime_hook.py',
+        '--exclude-module=tkinter.test',  # 排除测试模块
+        '--exclude-module=_tkinter.test',
+        '--exclude-module=PIL.ImageTk',  # 排除不需要的 PIL 模块
+        '--exclude-module=PIL._imagingtk',
     ]
+    
+    # 查找 Tcl/Tk 库路径
+    import tkinter
+    import _tkinter
+    tcl_tk_paths = []
+    
+    # 尝试多个可能的路径
+    possible_paths = [
+        os.path.dirname(tkinter.__file__),
+        os.path.dirname(_tkinter.__file__),
+        os.path.join(sys.prefix, 'tcl'),
+        os.path.join(sys.prefix, 'lib', 'tcl'),
+        os.path.join(sys.prefix, 'lib', 'tk'),
+    ]
+    
+    for base_path in possible_paths:
+        if os.path.exists(base_path):
+            # 查找 tcl*.dll 和 tk*.dll
+            for root, dirs, files in os.walk(base_path):
+                for file in files:
+                    if file.startswith(('tcl', 'tk')) and file.endswith('.dll'):
+                        dll_path = os.path.join(root, file)
+                        tcl_tk_paths.append((dll_path, '.'))
     
     # 添加找到的 Tcl/Tk DLL
     for src, dst in tcl_tk_paths:
