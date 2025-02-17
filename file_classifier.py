@@ -801,6 +801,20 @@ def main():
         logger = logging.getLogger('file_classifier')
         logger.info("程序启动")
         
+        # 尝试关闭所有 tk 窗口
+        if sys.platform == 'win32':
+            try:
+                import win32gui
+                
+                def close_tk_window(hwnd, extra):
+                    classname = win32gui.GetClassName(hwnd)
+                    if 'tk' in classname.lower():
+                        win32gui.PostMessage(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+                
+                win32gui.EnumWindows(close_tk_window, None)
+            except ImportError:
+                logger.warning("无法导入 win32gui 模块")
+        
         # 创建 FileClassifier 实例
         classifier = FileClassifier()
         
