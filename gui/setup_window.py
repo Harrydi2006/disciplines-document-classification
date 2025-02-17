@@ -15,6 +15,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import json
 import py7zr
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,17 @@ class SetupWindow:
                 'https://mirrors.aliyun.com/ffmpeg/ffmpeg-master-latest-win64-gpl.zip',
             ],
             'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
+        }
+    }
+    
+    # 添加文件校验和
+    FILE_CHECKSUMS = {
+        'tesseract': {
+            'tesseract-ocr-w64-setup-5.3.1.20230401.exe': 'a7d4c69e5b336c4f19eb3cca6c4a2d558fed685b9d679c60393886b4b8641481',
+            'chi_sim.traineddata': '06eac7a56c20f1f66889d65a3d7c2e9871f0d3fea0b683475a4c8c21c35ca646',
+        },
+        'ffmpeg': {
+            'ffmpeg-master-latest-win64-gpl.zip': None  # 动态文件，每次构建的哈希值不同
         }
     }
     
@@ -191,11 +203,56 @@ class SetupWindow:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
         
+    def _verify_file(self, file_path: Path, expected_hash: str = None, file_type: str = None) -> bool:
+        """验证文件完整性"""
+        if not file_path.exists():
+            return False
+            
+        if not expected_hash and file_type == 'ffmpeg':
+            # FFmpeg 是动态构建的，只检查文件大小
+            min_size = 100 * 1024 * 1024  # 最小 100MB
+            return file_path.stat().st_size >= min_size
+            
+        try:
+            sha256_hash = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                for byte_block in iter(lambda: f.read(4096), b""):
+                    sha256_hash.update(byte_block)
+            actual_hash = sha256_hash.hexdigest()
+            
+            if actual_hash != expected_hash:
+                self._add_log(f"文件校验失败: {file_path.name}")
+                self._add_log(f"预期哈希值: {expected_hash}")
+                self._add_log(f"实际哈希值: {actual_hash}")
+                return False
+                
+            self._add_log(f"文件校验成功: {file_path.name}")
+            return True
+            
+        except Exception as e:
+            self._add_log(f"文件校验出错: {str(e)}")
+            return False
+
     def _download_file(self, urls, progress_bar, status_label, name):
-        """从最快的镜像下载文件"""
+        """从最快的镜像下载文件，并验证完整性"""
         try:
             url = self.select_fastest_mirror(urls, name)
-            return self._download_from_url(url, progress_bar, status_label, name)
+            file_path = self._download_from_url(url, progress_bar, status_label, name)
+            
+            # 获取文件类型和预期哈希值
+            file_type = name.lower()
+            file_name = file_path.name
+            expected_hash = self.FILE_CHECKSUMS.get(file_type, {}).get(file_name)
+            
+            # 验证文件完整性
+            self._add_log(f"正在验证 {name} 文件完整性...")
+            if not self._verify_file(file_path, expected_hash, file_type):
+                # 如果验证失败，删除文件并重试其他镜像
+                file_path.unlink()
+                raise Exception(f"{name} 文件校验失败")
+                
+            return file_path
+            
         except Exception as e:
             self._add_log(f"下载 {name} 失败: {str(e)}")
             raise
@@ -319,15 +376,23 @@ class SetupWindow:
             return False
             
     def _install_chinese_language_pack(self):
-        """安装中文语言包"""
+        """安装中文语言包（添加校验）"""
         try:
             self._add_log("开始安装中文语言包...")
             tessdata_dir = Path(r'C:\Program Files\Tesseract-OCR\tessdata')
             lang_file = tessdata_dir / 'chi_sim.traineddata'
             
             if lang_file.exists():
-                self._add_log("中文语言包已存在")
-                return True
+                # 验证已存在的文件
+                if self._verify_file(
+                    lang_file,
+                    self.FILE_CHECKSUMS['tesseract']['chi_sim.traineddata']
+                ):
+                    self._add_log("中文语言包已存在且验证通过")
+                    return True
+                else:
+                    self._add_log("现有中文语言包验证失败，将重新下载")
+                    lang_file.unlink()
             
             # 确保tessdata目录存在
             tessdata_dir.mkdir(parents=True, exist_ok=True)
