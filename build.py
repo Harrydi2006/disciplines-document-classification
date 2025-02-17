@@ -190,6 +190,19 @@ def setup_environment():
             # 设置日志文件路径
             os.environ['LOG_DIR'] = log_dir
             
+            # 初始化 tkinter 根窗口
+            root = tk.Tk()
+            root.withdraw()
+            root.title('文件分类助手')
+            root.attributes('-alpha', 0)  # 完全透明
+            root.attributes('-topmost', True)  # 置顶
+            root.overrideredirect(True)  # 无边框
+            root.geometry('0x0+0+0')  # 设置大小为0
+            
+            # 保存根窗口引用
+            global _root
+            _root = root
+            
     except Exception as e:
         print(f"Error in setup_environment: {str(e)}")
         import traceback
@@ -197,17 +210,6 @@ def setup_environment():
 
 # 设置环境
 setup_environment()
-
-# 修复 tkinter 标题
-try:
-    root = tk.Tk()
-    root.withdraw()
-    root.title('文件分类助手')
-    root.destroy()
-except Exception as e:
-    print(f"Tkinter initialization error: {str(e)}")
-    import traceback
-    traceback.print_exc()
 """)
 
     # 更新 PyInstaller 参数
