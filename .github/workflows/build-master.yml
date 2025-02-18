@@ -1,0 +1,72 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+        
+    - name: Download Tesseract
+      run: |
+        Invoke-WebRequest -Uri "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe" -OutFile "tesseract-installer.exe"
+        Start-Process -FilePath "tesseract-installer.exe" -ArgumentList "/S" -Wait
+        
+    - name: Download FFmpeg
+      run: |
+        Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
+        Expand-Archive -Path "ffmpeg.zip" -DestinationPath "C:\"
+        Move-Item -Path "C:\ffmpeg-*" -Destination "C:\ffmpeg"
+        
+    - name: Get commit SHA
+      id: get_sha
+      run: echo "SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      shell: bash
+        
+    - name: Build with PyInstaller
+      run: |
+        python build.py
+        
+    - name: Upload CI build
+      uses: actions/upload-artifact@v3
+      with:
+        name: FileClassifier-CI-${{ env.SHA }}
+        path: dist/FileClassifier.exe
+        retention-days: 7  # CI 构建只保留7天
+        
+    - name: Update CI build status
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          const sha = process.env.SHA;
+          
+          await github.rest.repos.createCommitStatus({
+            owner,
+            repo,
+            sha: context.sha,
+            state: 'success',
+            context: 'CI Build',
+            description: `CI build successful - ${sha}`,
+            target_url: `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`
+          }); 

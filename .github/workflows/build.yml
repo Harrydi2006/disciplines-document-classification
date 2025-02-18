@@ -1,10 +1,15 @@
-name: Build and Release
+name: Release Build
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (例如: v1.0.0)'
+        required: true
+        type: string
 
 jobs:
   build:
@@ -12,6 +17,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -35,15 +42,69 @@ jobs:
         Expand-Archive -Path "ffmpeg.zip" -DestinationPath "C:\"
         Move-Item -Path "C:\ffmpeg-*" -Destination "C:\ffmpeg"
         
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "push" ]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+        else
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+        fi
+      shell: bash
+        
     - name: Build with PyInstaller
       run: |
         python build.py
         
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # 获取最近的两个标签
+        CURRENT_TAG="${{ github.ref }}"
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+        
+        if [ -n "$PREVIOUS_TAG" ]; then
+          # 如果存在前一个标签，获取两个标签之间的提交
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "### 更新内容" >> $GITHUB_ENV
+          git log --pretty=format:"- %s" ${PREVIOUS_TAG}..${CURRENT_TAG} >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        else
+          # 如果是第一个标签，获取所有提交
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "### 首次发布" >> $GITHUB_ENV
+          git log --pretty=format:"- %s" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        fi
+      shell: bash
+        
     - name: Create Release
       uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
+      if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       with:
+        name: Release ${{ env.VERSION }}
+        tag_name: v${{ env.VERSION }}
+        body: |
+          文件分类助手 v${{ env.VERSION }}
+          
+          ### 系统要求
+          - Windows 10 或更高版本
+          - 需要安装 Tesseract OCR 和 FFmpeg（首次运行时会自动下载）
+          
+          ${{ env.CHANGELOG }}
+          
         files: |
           dist/FileClassifier.exe
+        draft: false
+        prerelease: ${{ contains(env.VERSION, '-') }}
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload release artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: FileClassifier-${{ env.VERSION }}
+        path: dist/FileClassifier.exe
+        retention-days: 90  # 发布版本保留90天 
