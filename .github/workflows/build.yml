@@ -31,17 +31,6 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
-    - name: Download Tesseract
-      run: |
-        Invoke-WebRequest -Uri "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe" -OutFile "tesseract-installer.exe"
-        Start-Process -FilePath "tesseract-installer.exe" -ArgumentList "/S" -Wait
-        
-    - name: Download FFmpeg
-      run: |
-        Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
-        Expand-Archive -Path "ffmpeg.zip" -DestinationPath "C:\"
-        Move-Item -Path "C:\ffmpeg-*" -Destination "C:\ffmpeg"
-        
     - name: Get version
       id: get_version
       run: |
