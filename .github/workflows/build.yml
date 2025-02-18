@@ -40,10 +40,31 @@ jobs:
           echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
         fi
       shell: bash
-        
-    - name: Build with PyInstaller
+
+    - name: Download dependencies for full version
       run: |
+        # 创建依赖目录
+        mkdir -p resources/dependencies
+        
+        # 下载 Tesseract
+        Invoke-WebRequest -Uri "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe" -OutFile "resources/dependencies/tesseract-installer.exe"
+        
+        # 下载 FFmpeg
+        Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "resources/dependencies/ffmpeg.zip"
+        
+    - name: Build lite version
+      run: |
+        # 构建精简版（不包含依赖）
         python build.py
+        # 重命名输出文件
+        mv dist/FileClassifier.exe dist/FileClassifier-lite.exe
+        
+    - name: Build full version
+      run: |
+        # 构建完整版（包含依赖）
+        python build.py --include-dependencies
+        # 重命名输出文件
+        mv dist/FileClassifier.exe dist/FileClassifier-full.exe
         
     - name: Generate changelog
       id: changelog
@@ -78,21 +99,35 @@ jobs:
         body: |
           文件分类助手 v${{ env.VERSION }}
           
+          ### 版本说明
+          提供两个版本：
+          1. 精简版（FileClassifier-lite.exe）
+             - 仅包含程序本体
+             - 首次运行时会自动下载所需依赖
+             - 适合网络环境较好的用户
+          
+          2. 完整版（FileClassifier-full.exe）
+             - 包含所有依赖（Tesseract OCR 和 FFmpeg）
+             - 首次运行时自动安装依赖
+             - 适合网络环境受限的用户
+          
           ### 系统要求
           - Windows 10 或更高版本
-          - 需要安装 Tesseract OCR 和 FFmpeg（首次运行时会自动下载）
           
           ${{ env.CHANGELOG }}
           
         files: |
-          dist/FileClassifier.exe
+          dist/FileClassifier-lite.exe
+          dist/FileClassifier-full.exe
         draft: false
         prerelease: ${{ contains(env.VERSION, '-') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Upload release artifact
+    - name: Upload release artifacts
       uses: actions/upload-artifact@v4
       with:
         name: FileClassifier-${{ env.VERSION }}
-        path: dist/FileClassifier.exe 
+        path: |
+          dist/FileClassifier-lite.exe
+          dist/FileClassifier-full.exe 

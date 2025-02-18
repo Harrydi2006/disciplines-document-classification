@@ -2,6 +2,7 @@ import PyInstaller.__main__
 import os
 import shutil
 import sys
+import argparse
 from pathlib import Path
 
 # 设置控制台输出编码
@@ -19,7 +20,7 @@ sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') e
 
 def clean_build():
     """清理旧的构建文件"""
-    print("Cleaning old build files...")
+    print("清理旧的构建文件...")
     dirs_to_clean = ['build', 'dist']
     files_to_clean = ['*.spec']
     
@@ -120,30 +121,20 @@ def find_python_dll():
     print("未找到 Python DLL")
     return None
 
-def build_exe():
+def build_exe(include_dependencies=False):
     """构建可执行文件"""
     print("开始构建可执行文件...")
     
     # 清理旧的构建文件
-    for path in ['build', 'dist']:
-        if os.path.exists(path):
-            shutil.rmtree(path)
+    clean_build()
     
-    # 确保资源目录存在
-    resources_dir = Path('resources')
-    resources_dir.mkdir(exist_ok=True)
-    
-    # 复制配置模板
-    shutil.copy2('config.conf.template', resources_dir / 'config.conf.template')
-    
-    # PyInstaller参数
+    # 基本的 PyInstaller 参数
     args = [
         'file_classifier.py',  # 主程序文件
         '--name=FileClassifier',  # 输出文件名
         '--onefile',  # 打包成单个文件
         '--noconsole',  # 不显示控制台
         '--icon=resources/icon.ico',  # 程序图标
-        '--add-data=resources;resources',  # 添加资源文件
         '--hidden-import=PIL._tkinter_finder',  # 添加隐藏导入
         '--hidden-import=win32gui',
         '--hidden-import=win32con',
@@ -158,14 +149,99 @@ def build_exe():
         '--uac-admin',  # 请求管理员权限
     ]
     
-    # 运行PyInstaller
+    if include_dependencies:
+        # 添加依赖文件
+        deps_dir = Path('resources/dependencies')
+        if not deps_dir.exists():
+            print("错误：依赖目录不存在")
+            sys.exit(1)
+            
+        # 检查依赖文件是否存在
+        tesseract_installer = deps_dir / 'tesseract-installer.exe'
+        ffmpeg_zip = deps_dir / 'ffmpeg.zip'
+        
+        if not tesseract_installer.exists() or not ffmpeg_zip.exists():
+            print("错误：依赖文件不完整")
+            sys.exit(1)
+            
+        # 添加依赖文件到构建
+        args.extend([
+            '--add-data=resources/dependencies;dependencies'
+        ])
+        
+        # 创建运行时钩子
+        with open('runtime_hook.py', 'w', encoding='utf-8') as f:
+            f.write("""
+import os
+import sys
+import shutil
+import subprocess
+import zipfile
+from pathlib import Path
+
+def setup_dependencies():
+    try:
+        if getattr(sys, '_MEIPASS', None):
+            base_path = Path(sys._MEIPASS)
+            deps_path = base_path / 'dependencies'
+            
+            # 设置 FFmpeg
+            ffmpeg_zip = deps_path / 'ffmpeg.zip'
+            if ffmpeg_zip.exists():
+                ffmpeg_dir = Path('C:/ffmpeg')
+                if not ffmpeg_dir.exists():
+                    print("正在安装 FFmpeg...")
+                    with zipfile.ZipFile(ffmpeg_zip) as zf:
+                        # 解压到临时目录
+                        temp_dir = Path('temp_ffmpeg')
+                        zf.extractall(temp_dir)
+                        # 移动 FFmpeg 目录
+                        ffmpeg_extracted = next(temp_dir.glob('ffmpeg-*'))
+                        shutil.move(str(ffmpeg_extracted), str(ffmpeg_dir))
+                        # 清理临时目录
+                        shutil.rmtree(temp_dir)
+                    print("FFmpeg 安装完成")
+            
+            # 设置 Tesseract
+            tesseract_installer = deps_path / 'tesseract-installer.exe'
+            if tesseract_installer.exists():
+                tesseract_path = Path('C:/Program Files/Tesseract-OCR/tesseract.exe')
+                if not tesseract_path.exists():
+                    print("正在安装 Tesseract OCR...")
+                    subprocess.run([str(tesseract_installer), '/S'], 
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+                    print("Tesseract OCR 安装完成")
+                    
+    except Exception as e:
+        print(f"设置依赖时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+# 设置依赖
+setup_dependencies()
+""")
+            
+        # 添加运行时钩子
+        args.extend(['--runtime-hook=runtime_hook.py'])
+    
+    # 运行 PyInstaller
     PyInstaller.__main__.run(args)
+    
+    # 清理运行时钩子文件
+    if include_dependencies and os.path.exists('runtime_hook.py'):
+        os.remove('runtime_hook.py')
     
     print("构建完成！")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='构建文件分类助手')
+    parser.add_argument('--include-dependencies', action='store_true',
+                      help='包含 Tesseract 和 FFmpeg 依赖')
+    
+    args = parser.parse_args()
+    
     try:
-        build_exe()
+        build_exe(include_dependencies=args.include_dependencies)
     except Exception as e:
         print(f"构建失败: {str(e)}")
         sys.exit(1) 

@@ -56,9 +56,25 @@ class SetupWindow:
         self.style = ttk.Style()
         self.style.configure('Horizontal.TProgressbar', thickness=20)
         
+        # 检查是否是完整版
+        self.is_full_version = self._check_full_version()
+        
         self._init_ui()
         self._center_window()
         
+    def _check_full_version(self) -> bool:
+        """检查是否是完整版安装包"""
+        deps_dir = Path('dependencies')
+        if not deps_dir.exists():
+            if getattr(sys, '_MEIPASS', None):
+                deps_dir = Path(sys._MEIPASS) / 'dependencies'
+            
+        if deps_dir.exists():
+            tesseract_installer = deps_dir / 'tesseract-installer.exe'
+            ffmpeg_zip = deps_dir / 'ffmpeg.zip'
+            return tesseract_installer.exists() and ffmpeg_zip.exists()
+        return False
+
     def _init_ui(self):
         # 创建主框架，添加内边距
         main_frame = ttk.Frame(self.root, padding="20")
@@ -73,9 +89,14 @@ class SetupWindow:
         title_label.pack(pady=(0, 20))
         
         # 说明文本
+        if self.is_full_version:
+            desc_text = "首次运行需要安装必要的组件，所有依赖已包含在安装包中"
+        else:
+            desc_text = "首次运行需要下载并安装必要的组件，请保持网络连接"
+            
         desc_label = ttk.Label(
             main_frame,
-            text="首次运行需要下载并安装必要的组件，请保持网络连接",
+            text=desc_text,
             font=('Microsoft YaHei UI', 10)
         )
         desc_label.pack(pady=(0, 20))
@@ -252,33 +273,46 @@ class SetupWindow:
         
         for url in urls:
             try:
-                status_label.config(text=f"{name}: 正在从 {url.split('/')[2]} 下载...")
-                
                 response = requests.get(url, stream=True)
+                response.raise_for_status()
+                
+                # 获取文件大小
                 total_size = int(response.headers.get('content-length', 0))
                 
-                if response.status_code != 200:
-                    raise requests.RequestException(f"HTTP {response.status_code}")
-                
-                file_path = downloads_dir / url.split('/')[-1]
+                # 设置进度条最大值
                 progress_bar['maximum'] = total_size
                 
-                with open(file_path, 'wb') as f:
+                # 更新状态标签
+                status_label.config(text=f"正在下载 {name}...")
+                
+                # 准备文件路径
+                file_path = downloads_dir / Path(url).name
+                
+                # 下载文件
+                with open(file_path, 'wb') as f, tqdm(
+                    desc=name,
+                    total=total_size,
+                    unit='iB',
+                    unit_scale=True,
+                    unit_divisor=1024,
+                ) as pbar:
                     downloaded = 0
-                    for data in response.iter_content(chunk_size=8192):
-                        downloaded += len(data)
-                        f.write(data)
+                    for data in response.iter_content(chunk_size=1024):
+                        size = f.write(data)
+                        downloaded += size
+                        pbar.update(size)
                         progress_bar['value'] = downloaded
                         self.root.update()
-                
+                        
                 return file_path
                 
             except Exception as e:
-                status_label.config(text=f"{name}: 从 {url.split('/')[2]} 下载失败 - {str(e)}")
+                logger.error(f"从 {url} 下载 {name} 失败: {str(e)}")
+                self._add_log(f"从 {url} 下载失败，尝试其他镜像...")
                 continue
-        
-        raise Exception(f"所有镜像下载失败")
-            
+                
+        raise Exception(f"所有镜像下载 {name} 均失败")
+
     def _check_ffmpeg(self) -> bool:
         """检查 FFmpeg 是否已安装"""
         try:
@@ -333,65 +367,103 @@ class SetupWindow:
         self.log_text.update_idletasks()
 
     def _install_ffmpeg(self):
+        """安装 FFmpeg"""
         try:
-            if self._check_ffmpeg():
-                self._add_log("检测到 FFmpeg 已安装")
-                self.ffmpeg_progress['value'] = 100
-                return True
-
-            self._add_log("开始安装 FFmpeg...")
-            self.ffmpeg_label.config(text="FFmpeg: 准备下载...")
-            
-            # 下载文件
-            zip_path = self._download_file(
-                self.FFMPEG_MIRRORS,
-                self.ffmpeg_progress,
-                self.ffmpeg_label,
-                "FFmpeg"
-            )
-            self._add_log("FFmpeg 下载完成，开始解压安装...")
-            
-            # 安装过程
             self.ffmpeg_label.config(text="FFmpeg: 正在安装...")
-            ffmpeg_dir = Path('C:/ffmpeg')
-            if ffmpeg_dir.exists():
-                self._add_log("删除旧版本 FFmpeg...")
-                shutil.rmtree(ffmpeg_dir)
+            self.ffmpeg_progress['value'] = 0
+            self.root.update()
             
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                root_dir = zip_ref.namelist()[0].split('/')[0]
-                self._add_log("解压 FFmpeg 文件...")
-                zip_ref.extractall('C:/')
+            # 检查是否是完整版
+            if self.is_full_version:
+                # 从本地安装
+                deps_dir = Path('dependencies')
+                if not deps_dir.exists() and getattr(sys, '_MEIPASS', None):
+                    deps_dir = Path(sys._MEIPASS) / 'dependencies'
+                    
+                ffmpeg_zip = deps_dir / 'ffmpeg.zip'
+                if not ffmpeg_zip.exists():
+                    raise FileNotFoundError("找不到 FFmpeg 安装文件")
+                    
+                self._add_log("正在解压 FFmpeg...")
                 
-                extracted_path = Path(f'C:/{root_dir}')
-                if extracted_path != ffmpeg_dir:
-                    self._add_log("重命名 FFmpeg 目录...")
-                    extracted_path.rename(ffmpeg_dir)
-            
-            # 环境变量设置
-            ffmpeg_bin = str(ffmpeg_dir / 'bin')
-            if ffmpeg_bin not in os.environ['PATH']:
-                self._add_log("添加 FFmpeg 到环境变量...")
-                os.environ['PATH'] += os.pathsep + ffmpeg_bin
-            
-            # 更新配置
-            self._add_log("更新配置文件...")
-            config = configparser.ConfigParser()
-            config.read('config.conf', encoding='utf-8')
-            config['Audio']['ffmpeg_path'] = str(Path('C:/ffmpeg/bin/ffmpeg.exe'))
-            with open('config.conf', 'w', encoding='utf-8') as f:
-                config.write(f)
-            
-            self._add_log("FFmpeg 安装完成！")
+                # 解压 FFmpeg
+                with zipfile.ZipFile(ffmpeg_zip) as zf:
+                    # 获取压缩包中的所有文件
+                    total_files = len(zf.filelist)
+                    self.ffmpeg_progress['maximum'] = total_files
+                    
+                    # 创建临时目录
+                    temp_dir = Path('temp_ffmpeg')
+                    temp_dir.mkdir(exist_ok=True)
+                    
+                    # 解压文件
+                    for i, file in enumerate(zf.filelist):
+                        zf.extract(file, temp_dir)
+                        self.ffmpeg_progress['value'] = i + 1
+                        self.root.update()
+                        
+                    # 移动 FFmpeg 目录
+                    ffmpeg_dir = Path('C:/ffmpeg')
+                    if ffmpeg_dir.exists():
+                        shutil.rmtree(ffmpeg_dir)
+                        
+                    ffmpeg_extracted = next(temp_dir.glob('ffmpeg-*'))
+                    shutil.move(str(ffmpeg_extracted), str(ffmpeg_dir))
+                    
+                    # 清理临时目录
+                    shutil.rmtree(temp_dir)
+                    
+            else:
+                # 从网络下载安装
+                self._add_log("正在下载 FFmpeg...")
+                ffmpeg_file = self._download_file(
+                    self.FFMPEG_MIRRORS,
+                    self.ffmpeg_progress,
+                    self.ffmpeg_label,
+                    "FFmpeg"
+                )
+                
+                self._add_log("正在解压 FFmpeg...")
+                
+                # 解压 FFmpeg
+                with zipfile.ZipFile(ffmpeg_file) as zf:
+                    # 获取压缩包中的所有文件
+                    total_files = len(zf.filelist)
+                    self.ffmpeg_progress['maximum'] = total_files
+                    
+                    # 创建临时目录
+                    temp_dir = Path('temp_ffmpeg')
+                    temp_dir.mkdir(exist_ok=True)
+                    
+                    # 解压文件
+                    for i, file in enumerate(zf.filelist):
+                        zf.extract(file, temp_dir)
+                        self.ffmpeg_progress['value'] = i + 1
+                        self.root.update()
+                        
+                    # 移动 FFmpeg 目录
+                    ffmpeg_dir = Path('C:/ffmpeg')
+                    if ffmpeg_dir.exists():
+                        shutil.rmtree(ffmpeg_dir)
+                        
+                    ffmpeg_extracted = next(temp_dir.glob('ffmpeg-*'))
+                    shutil.move(str(ffmpeg_extracted), str(ffmpeg_dir))
+                    
+                    # 清理临时目录
+                    shutil.rmtree(temp_dir)
+                    
+                # 清理下载文件
+                ffmpeg_file.unlink()
+                
+            self._add_log("FFmpeg 安装完成")
             self.ffmpeg_label.config(text="FFmpeg: 安装完成")
-            return True
+            self.ffmpeg_progress['value'] = self.ffmpeg_progress['maximum']
             
         except Exception as e:
-            error_msg = f"FFmpeg 安装失败: {str(e)}"
-            self._add_log(error_msg)
-            self.ffmpeg_label.config(text=f"FFmpeg: 安装失败 - {str(e)}")
-            return False
-            
+            self._add_log(f"FFmpeg 安装失败: {str(e)}")
+            self.ffmpeg_label.config(text="FFmpeg: 安装失败")
+            raise
+
     def _install_chinese_language_pack(self):
         """安装中文语言包"""
         try:
@@ -442,95 +514,86 @@ class SetupWindow:
             return False
 
     def _install_tesseract(self):
+        """安装 Tesseract"""
         try:
-            if self._check_tesseract():
-                self._add_log("检测到 Tesseract 已安装")
-                self.tesseract_progress['value'] = 100
-                return True
-
-            self._add_log("开始安装 Tesseract...")
-            self.tesseract_label.config(text="Tesseract: 准备下载...")
+            self.tesseract_label.config(text="Tesseract: 正在安装...")
+            self.tesseract_progress['value'] = 0
+            self.root.update()
             
-            # 下载安装程序
-            exe_path = self._download_file(
-                self.TESSERACT_MIRRORS,
-                self.tesseract_progress,
-                self.tesseract_label,
-                "Tesseract"
-            )
-            
-            # 直接使用手动安装
-            self._add_log("准备安装 Tesseract 主程序...")
-            self._add_log("1. 安装位置保持默认：C:\\Program Files\\Tesseract-OCR")
-            self._add_log("2. 确保勾选'Add Tesseract to PATH'选项")
-            
-            # 显示安装提示对话框
-            messagebox.showinfo(
-                "安装说明", 
-                "即将打开 Tesseract 安装程序，请：\n\n"
-                "1. 使用默认安装位置\n"
-                "2. 勾选'Add Tesseract to PATH'\n\n"
-                "完成上述步骤后点击安装。"
-            )
-            
-            # 运行安装程序
-            self._add_log("启动安装程序...")
-            result = os.system(f'"{exe_path}"')
-            
-            if result != 0:
-                raise Exception("安装程序异常退出")
-            
-            # 等待安装完成
-            self._add_log("等待安装完成...")
-            tesseract_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-            
-            for i in range(60):
-                if Path(tesseract_path).exists():
-                    self._add_log("检测到 Tesseract 已安装")
-                    break
-                self._add_log(f"等待安装完成... {i+1}/60")
-                time.sleep(1)
-                self.root.update()
-            
-            if not Path(tesseract_path).exists():
-                raise Exception("未检测到 Tesseract 安装，请确认是否安装成功")
-            
-            # 测试安装
-            self._add_log("测试 Tesseract 安装...")
-            test_result = os.system(f'"{tesseract_path}" --version')
-            if test_result != 0:
-                raise Exception("Tesseract 安装测试失败")
-            
-            # 安装中文语言包
-            self._add_log("\n开始安装中文语言包...")
-            if not self._install_chinese_language_pack():
-                if not messagebox.askyesno(
-                    "继续安装", 
-                    "中文语言包安装失败，这可能会影响中文文档的识别。\n是否继续？"
-                ):
-                    raise Exception("用户取消安装")
-                self._add_log("用户选择继续，但中文支持可能不可用")
+            # 检查是否是完整版
+            if self.is_full_version:
+                # 从本地安装
+                deps_dir = Path('dependencies')
+                if not deps_dir.exists() and getattr(sys, '_MEIPASS', None):
+                    deps_dir = Path(sys._MEIPASS) / 'dependencies'
+                    
+                tesseract_installer = deps_dir / 'tesseract-installer.exe'
+                if not tesseract_installer.exists():
+                    raise FileNotFoundError("找不到 Tesseract 安装文件")
+                    
+                self._add_log("正在安装 Tesseract...")
+                
+                # 运行安装程序
+                import subprocess
+                process = subprocess.Popen(
+                    [str(tesseract_installer), '/S'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                
+                # 等待安装完成
+                while process.poll() is None:
+                    time.sleep(0.1)
+                    self.root.update()
+                    
+                if process.returncode != 0:
+                    raise Exception(f"Tesseract 安装失败，返回代码: {process.returncode}")
+                    
             else:
-                self._add_log("中文语言包安装成功")
+                # 从网络下载安装
+                self._add_log("正在下载 Tesseract...")
+                tesseract_file = self._download_file(
+                    self.TESSERACT_MIRRORS,
+                    self.tesseract_progress,
+                    self.tesseract_label,
+                    "Tesseract"
+                )
+                
+                self._add_log("正在安装 Tesseract...")
+                
+                # 运行安装程序
+                import subprocess
+                process = subprocess.Popen(
+                    [str(tesseract_file), '/S'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                
+                # 等待安装完成
+                while process.poll() is None:
+                    time.sleep(0.1)
+                    self.root.update()
+                    
+                if process.returncode != 0:
+                    raise Exception(f"Tesseract 安装失败，返回代码: {process.returncode}")
+                    
+                # 清理下载文件
+                tesseract_file.unlink()
+                
+            # 安装中文语言包
+            self._install_chinese_language_pack()
             
-            # 更新配置
-            self._add_log("更新配置文件...")
-            config = configparser.ConfigParser()
-            config.read('config.conf', encoding='utf-8')
-            config['OCR']['tesseract_path'] = tesseract_path
-            with open('config.conf', 'w', encoding='utf-8') as f:
-                config.write(f)
-            
-            self._add_log("Tesseract 安装完成！")
+            self._add_log("Tesseract 安装完成")
             self.tesseract_label.config(text="Tesseract: 安装完成")
-            return True
+            self.tesseract_progress['value'] = self.tesseract_progress['maximum']
             
         except Exception as e:
-            error_msg = f"Tesseract 安装失败: {str(e)}"
-            self._add_log(error_msg)
-            self.tesseract_label.config(text=f"Tesseract: 安装失败 - {str(e)}")
-            return False
-            
+            self._add_log(f"Tesseract 安装失败: {str(e)}")
+            self.tesseract_label.config(text="Tesseract: 安装失败")
+            raise
+
     def _start_installation(self):
         self.start_button.config(state='disabled')
         self.status_label.config(text="检查已安装组件...")
