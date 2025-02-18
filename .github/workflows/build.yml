@@ -95,5 +95,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: FileClassifier-${{ env.VERSION }}
-        path: dist/FileClassifier.exe
-        retention-days: 90  # 发布版本保留90天 
+        path: dist/FileClassifier.exe 

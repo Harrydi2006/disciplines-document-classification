@@ -41,7 +41,7 @@ jobs:
       with:
         name: FileClassifier-CI-${{ env.SHA }}
         path: dist/FileClassifier.exe
-        retention-days: 7  # CI 构建只保留7天
+        retention-days: 90  # CI 构建保留90天
         
     - name: Update CI build status
       uses: actions/github-script@v7
