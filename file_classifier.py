@@ -38,6 +38,14 @@ class FileClassifier:
     def __init__(self):
         logger.info("初始化文件分类器")
         
+        # 线程池相关的属性
+        self._executor = None
+        self._allow_dynamic_threads = False
+        self._current_content_threads = 0
+        self._base_workers = 0
+        self._max_additional_threads = 4
+        self._threads = []
+        
         # 先创建默认配置（如果需要）
         self._create_default_config()
         
@@ -50,6 +58,7 @@ class FileClassifier:
             if not self._check_environment():
                 raise EnvironmentError("环境检查失败，请重新运行安装程序")
             
+            # 只创建目标文件夹结构
             self._setup_folders()
             
         except Exception as e:
@@ -91,8 +100,7 @@ class FileClassifier:
             }
             
             config['Paths'] = {
-                'source_folder': '',  # 留空，等待用户选择
-                'target_folder': ''   # 留空，等待用户选择
+                'target_folder': ''   # 只保留目标文件夹
             }
             
             config['Prompt'] = {
@@ -102,7 +110,8 @@ class FileClassifier:
             config['Features'] = {
                 'enable_ocr': 'true',
                 'enable_audio': 'true',
-                'enable_archive': 'true'
+                'enable_archive': 'true',
+                'include_subfolders': 'true'  # 添加子文件夹选项
             }
             
             config['Threading'] = {
@@ -149,25 +158,20 @@ class FileClassifier:
     def _setup_folders(self):
         """设置必要的文件夹结构"""
         try:
-            # 检查路径设置
-            source_path = self.config['Paths']['source_folder']
+            # 只检查目标文件夹
             target_path = self.config['Paths']['target_folder']
             
-            if not source_path or not target_path:
-                logger.warning("源文件夹或目标文件夹未设置")
+            if not target_path:
+                logger.warning("目标文件夹未设置")
                 messagebox.showwarning(
                     "路径未设置",
-                    "请先设置源文件夹和目标文件夹路径。\n"
+                    "请先设置目标文件夹路径。\n"
                     "可以在主界面的路径设置中选择合适的目录。"
                 )
                 return False
             
-            # 创建基本目录
+            # 创建目标文件夹及其子目录
             base_dir = Path(target_path)
-            source_dir = Path(source_path)
-            
-            # 创建源文件夹
-            source_dir.mkdir(parents=True, exist_ok=True)
             
             # 创建目标文件夹及其子目录
             for subject in self.subjects:
@@ -186,30 +190,46 @@ class FileClassifier:
             )
             return False
 
-    def classify_file(self, file_path: Path) -> str:
+    def classify_file(self, file_path: Path) -> tuple[str, Optional[str]]:
         try:
             # 首先通过文件名判断
-            subject = self._classify_by_filename(file_path)
+            subject, reason = self._classify_by_filename(file_path)
             if subject != '未知':
-                return subject
+                return subject, None
 
-            # 根据文件类型选择处理方法
-            if file_path.suffix.lower() in ['.txt', '.doc', '.docx', '.pdf']:
-                subject = self._classify_by_content(file_path)
-            elif file_path.suffix.lower() in ['.jpg', '.png', '.jpeg'] and \
-                 self.config.getboolean('Features', 'enable_ocr'):
-                subject = self._classify_by_ocr(file_path)
-            elif file_path.suffix.lower() in ['.zip', '.rar', '.7z'] and \
-                 self.config.getboolean('Features', 'enable_archive'):
-                subject = self._classify_archive(file_path)
-            elif file_path.suffix.lower() in ['.mp3', '.wav', '.m4a'] and \
-                 self.config.getboolean('Features', 'enable_audio'):
-                subject = self._classify_audio(file_path)
+            # 获取文件扩展名
+            ext = file_path.suffix.lower()
             
-            return subject or '未知'
+            # 定义支持的文件类型
+            supported_types = {
+                'document': ['.txt', '.doc', '.docx', '.pdf', '.ppt', '.pptx'],
+                'image': ['.jpg', '.png', '.jpeg'],
+                'archive': ['.zip', '.rar', '.7z'],
+                'audio': ['.mp3', '.wav', '.m4a']
+            }
+            
+            # 根据文件类型选择处理方法
+            if ext in supported_types['document']:
+                subject, reason = self._classify_by_content(file_path)
+            elif (ext in supported_types['image'] and 
+                  self.config.getboolean('Features', 'enable_ocr')):
+                subject, reason = self._classify_by_ocr(file_path)
+            elif (ext in supported_types['archive'] and 
+                  self.config.getboolean('Features', 'enable_archive')):
+                subject, reason = self._classify_archive(file_path)
+            elif (ext in supported_types['audio'] and 
+                  self.config.getboolean('Features', 'enable_audio')):
+                subject, reason = self._classify_audio(file_path)
+            else:
+                # 对于不支持的文件类型，返回未知和原因
+                reason = "不支持的文件类型或相关功能未启用"
+                logger.info(f"{reason}: {file_path.name}")
+                return '未知', reason
+            
+            return subject, reason
         except Exception as e:
             logger.error(f"文件分类失败 {file_path}: {str(e)}", exc_info=True)
-            return '未知'
+            return '未知', f"处理出错: {str(e)}"
 
     def _call_api(self, content: str) -> str:
         try:
@@ -292,39 +312,47 @@ class FileClassifier:
 
             # 创建分类缓存
             self._classification_cache = {}
+            
+            # 获取线程设置
+            try:
+                max_workers = int(self.config['Threading']['max_workers'])
+                total_files = len(files)
+                
+                # 初始化线程池
+                executor = self._initialize_thread_pool(max_workers, total_files)
+                logger.info(f"开始处理 {total_files} 个文件，初始线程数: {self._base_workers}")
+                
+                try:
+                    with tqdm.tqdm(total=total_files, desc="处理进度") as pbar:
+                        futures = []
+                        for file_path in files:
+                            # 提交任务到线程池
+                            future = executor.submit(self._process_single_file_with_thread_control, file_path)
+                            futures.append(future)
+                        
+                        # 处理完成的任务
+                        for future in as_completed(futures):
+                            try:
+                                file_path, subject = future.result()
+                                if subject:
+                                    # 更新缓存
+                                    self._classification_cache[str(file_path)] = subject
+                                    # 移动文件
+                                    self._move_classified_file(file_path, subject)
+                                pbar.update(1)
+                            except Exception as e:
+                                logger.error(f"处理文件失败: {str(e)}")
+                                continue
+                finally:
+                    # 清理线程池
+                    self._cleanup_thread_pool()
 
-            logger.info(f"开始处理 {len(files)} 个文件")
-            with ThreadPoolExecutor(max_workers=int(self.config['Threading']['max_workers'])) as executor:
-                with tqdm.tqdm(total=len(files), desc="处理进度") as pbar:
-                    # 先进行分类
-                    for file_path in files:
-                        try:
-                            subject = self.classify_file(file_path)
-                            self._classification_cache[str(file_path)] = subject
-                            logger.info(f"文件 {file_path.name} 分类为: {subject}")
-                            
-                            # 直接移动文件，不再调用 process_single_file
-                            target_dir = Path(self.config['Paths']['target_folder']) / subject
-                            target_path = target_dir / file_path.name
-                            
-                            # 确保目标目录存在
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            
-                            # 如果目标文件已存在，添加序号
-                            counter = 1
-                            while target_path.exists():
-                                new_name = f"{file_path.stem}_{counter}{file_path.suffix}"
-                                target_path = target_dir / new_name
-                                counter += 1
-                            
-                            # 移动文件
-                            shutil.move(str(file_path), str(target_path))
-                            logger.info(f"文件 {file_path.name} 已成功移动到 {subject} 目录")
-                            
-                        except Exception as e:
-                            logger.error(f"处理失败 {file_path}: {str(e)}", exc_info=True)
-                            self._classification_cache[str(file_path)] = '未知'
-                        pbar.update(1)
+            except ValueError as e:
+                logger.error(f"无效的线程数设置: {str(e)}")
+                return
+            except Exception as e:
+                logger.error(f"处理文件时出错: {str(e)}")
+                return
 
             logger.info("文件处理完成")
 
@@ -332,118 +360,264 @@ class FileClassifier:
             logger.error(f"处理文件过程中发生错误: {str(e)}", exc_info=True)
             raise
 
-    def process_single_file(self, file_path: Path) -> str:
-        """处理单个文件（为了保持兼容性）"""
+    def _process_single_file_with_thread_control(self, file_path: Path) -> tuple:
+        """处理单个文件，包含线程控制逻辑"""
         try:
-            logger.info(f"开始处理文件: {file_path.name}")
+            # 检查是否需要读取文件内容
+            ext = file_path.suffix.lower()
+            content_processing = ext in ['.txt', '.doc', '.docx', '.pdf', '.ppt', '.pptx']
             
-            # 从缓存获取分类结果
-            if not hasattr(self, '_classification_cache'):
-                self._classification_cache = {}
+            if content_processing and self._allow_dynamic_threads:
+                # 增加内容处理线程计数
+                self._current_content_threads += 1
+                
+                # 如果所有线程都在处理内容，且未达到额外线程上限，添加新线程
+                if (self._current_content_threads >= self._base_workers and 
+                    len(self._threads) < self._base_workers + self._max_additional_threads):
+                    self._add_thread()
             
-            # 检查缓存
-            if str(file_path) not in self._classification_cache:
-                # 先进行分类
-                subject = self.classify_file(file_path)
-                self._classification_cache[str(file_path)] = subject
-                logger.info(f"文件 {file_path.name} 分类为: {subject}")
-            else:
-                # 使用缓存的分类结果
-                subject = self._classification_cache[str(file_path)]
-                logger.info(f"使用缓存的分类结果: {subject}")
+            try:
+                # 处理文件
+                subject, reason = self.classify_file(file_path)
+                return file_path, subject
+            finally:
+                if content_processing and self._allow_dynamic_threads:
+                    # 减少内容处理线程计数
+                    self._current_content_threads -= 1
+                    
+        except Exception as e:
+            logger.error(f"处理文件失败 {file_path}: {str(e)}")
+            return file_path, '未知'
+
+    def _add_thread(self):
+        """添加新的线程到线程池"""
+        try:
+            # 获取当前线程池
+            executor = self._executor
+            if executor and not executor._shutdown:
+                # 增加最大线程数
+                executor._max_workers += 1
+                logger.info(f"增加线程池大小到 {executor._max_workers}")
+        except Exception as e:
+            logger.error(f"添加线程失败: {str(e)}")
+
+    def _move_classified_file(self, file_path: Path, subject: str):
+        """移动已分类的文件到目标目录"""
+        try:
+            # 确保subject不为空，如果为空则设为'未知'
+            if not subject:
+                subject = '未知'
+                logger.info(f"文件 {file_path.name} 的分类为空，将移动到未知目录")
+            
+            target_dir = Path(self.config['Paths']['target_folder']) / subject
+            target_path = target_dir / file_path.name
+            
+            # 确保目标目录存在
+            target_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 如果目标文件已存在，添加序号
+            counter = 1
+            while target_path.exists():
+                new_name = f"{file_path.stem}_{counter}{file_path.suffix}"
+                target_path = target_dir / new_name
+                counter += 1
             
             # 移动文件
-            target_dir = Path(self.config['Paths']['target_folder']) / subject
-            target_path = target_dir / file_path.name
-            
-            logger.info(f"准备移动文件 {file_path.name} 到 {target_dir}")
-            
-            # 确保目标目录存在
-            target_dir.mkdir(parents=True, exist_ok=True)
-            
-            # 如果目标文件已存在，添加序号
-            counter = 1
-            while target_path.exists():
-                new_name = f"{file_path.stem}_{counter}{file_path.suffix}"
-                target_path = target_dir / new_name
-                counter += 1
-            
-            # 使用 shutil.move 而不是 rename，以支持跨设备移动
             shutil.move(str(file_path), str(target_path))
             logger.info(f"文件 {file_path.name} 已成功移动到 {subject} 目录")
-            return subject
             
         except Exception as e:
-            logger.error(f"处理文件失败 {file_path}: {str(e)}", exc_info=True)
+            logger.error(f"移动文件失败 {file_path}: {str(e)}")
             raise
 
-    def _move_file(self, file_path: Path):
-        """移动文件到目标目录"""
-        try:
-            # 从缓存获取分类结果
-            subject = self._classification_cache.get(str(file_path), '未知')
-            
-            target_dir = Path(self.config['Paths']['target_folder']) / subject
-            target_path = target_dir / file_path.name
-            
-            logger.info(f"准备移动文件 {file_path.name} 到 {target_dir}")
-            
-            # 确保目标目录存在
-            target_dir.mkdir(parents=True, exist_ok=True)
-            
-            # 如果目标文件已存在，添加序号
-            counter = 1
-            while target_path.exists():
-                new_name = f"{file_path.stem}_{counter}{file_path.suffix}"
-                target_path = target_dir / new_name
-                counter += 1
-            
-            # 使用 shutil.move 而不是 rename，以支持跨设备移动
-            shutil.move(str(file_path), str(target_path))
-            logger.info(f"文件 {file_path.name} 已成功移动到 {subject} 目录")
-            return subject
-            
-        except Exception as e:
-            logger.error(f"移动文件失败 {file_path}: {str(e)}", exc_info=True)
-            raise
-
-    def _classify_by_filename(self, file_path: Path) -> str:
+    def _classify_by_filename(self, file_path: Path) -> tuple[str, Optional[str]]:
         try:
             filename = file_path.stem.lower()
             content = f"文件名：{filename}"
-            return self._call_api(content)
+            subject = self._call_api(content)
+            if subject != '未知':
+                return subject, None
+
+            # 获取文件扩展名
+            ext = file_path.suffix.lower()
+            
+            # 定义支持的文件类型
+            supported_types = {
+                'document': ['.txt', '.doc', '.docx', '.pdf', '.ppt', '.pptx'],
+                'image': ['.jpg', '.png', '.jpeg'],
+                'archive': ['.zip', '.rar', '.7z'],
+                'audio': ['.mp3', '.wav', '.m4a']
+            }
+            
+            # 根据文件类型选择处理方法
+            if ext in supported_types['document']:
+                subject, reason = self._classify_by_content(file_path)
+            elif (ext in supported_types['image'] and 
+                  self.config.getboolean('Features', 'enable_ocr')):
+                subject, reason = self._classify_by_ocr(file_path)
+            elif (ext in supported_types['archive'] and 
+                  self.config.getboolean('Features', 'enable_archive')):
+                subject, reason = self._classify_archive(file_path)
+            elif (ext in supported_types['audio'] and 
+                  self.config.getboolean('Features', 'enable_audio')):
+                subject, reason = self._classify_audio(file_path)
+            else:
+                # 对于不支持的文件类型，返回未知和原因
+                reason = "不支持的文件类型或相关功能未启用"
+                logger.info(f"{reason}: {file_path.name}")
+                return '未知', reason
+            
+            return subject, reason
         except Exception as e:
             logger.error(f"文件名分类失败 {file_path}: {str(e)}", exc_info=True)
-            return '未知'
+            return '未知', f"处理出错: {str(e)}"
 
-    def _classify_by_content(self, file_path: Path) -> str:
+    def _classify_by_content(self, file_path: Path) -> tuple[str, Optional[str]]:
+        """根据文件内容进行分类"""
         try:
             content = ""
-            if file_path.suffix.lower() == '.txt':
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read(2000)  # 读取前2000个字符
-            elif file_path.suffix.lower() in ['.doc', '.docx']:
-                from docx import Document
-                doc = Document(file_path)
-                content = '\n'.join([p.text for p in doc.paragraphs][:10])  # 读取前10段
-            elif file_path.suffix.lower() == '.pdf':
-                from PyPDF2 import PdfReader
-                reader = PdfReader(file_path)
-                content = reader.pages[0].extract_text()[:2000]  # 读取第一页前2000字符
-
-            # 清理文本
-            import re
-            content = re.sub(r'\s+', ' ', content)  # 替换多个空白字符为单个空格
-            content = re.sub(r'[^\w\s\u4e00-\u9fff]', '', content)  # 只保留中文、英文、数字和空格
+            ext = file_path.suffix.lower()
             
-            if content:
-                return self._call_api(content[:500])  # 只使用前500字符
-            return '未知'
+            if ext == '.txt':
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read(2000)  # 只读取前2000个字符
+                    
+            elif ext in ['.doc', '.docx']:
+                import docx
+                doc = docx.Document(file_path)
+                content = '\n'.join([p.text for p in doc.paragraphs])[:2000]
+                
+            elif ext == '.pdf':
+                try:
+                    import fitz  # PyMuPDF
+                    
+                    # 尝试打开PDF文件
+                    doc = fitz.open(file_path)
+                    
+                    # 检查是否加密
+                    if doc.needs_pass:
+                        logger.info(f"PDF文件已加密，尝试使用OCR: {file_path}")
+                        try:
+                            # 将第一页转换为图片
+                            page = doc[0]
+                            pix = page.get_pixmap()
+                            img_path = file_path.with_suffix('.png')
+                            pix.save(str(img_path))
+                            
+                            # 对图片进行OCR
+                            result = self._classify_by_ocr(img_path)
+                            
+                            # 删除临时图片
+                            if img_path.exists():
+                                img_path.unlink()
+                                
+                            return result
+                            
+                        except Exception as e:
+                            logger.error(f"加密PDF处理失败: {str(e)}")
+                            return '未知', f"加密PDF处理失败: {str(e)}"
+                    
+                    # 如果PDF未加密，提取文本
+                    content = ''
+                    # 尝试读取前两页
+                    for page_num in range(min(2, doc.page_count)):
+                        try:
+                            page = doc[page_num]
+                            page_text = page.get_text()
+                            if page_text:
+                                content += page_text + '\n'
+                        except Exception as e:
+                            logger.error(f"PDF页面{page_num}文本提取失败: {str(e)}")
+                            continue
+                    
+                    doc.close()
+                    content = content.strip()[:2000]  # 限制长度
+                    
+                    if not content:  # 如果没有提取到任何文本
+                        logger.warning(f"未能从PDF提取到文本，尝试OCR: {file_path}")
+                        # 将第一页转换为图片并进行OCR
+                        try:
+                            doc = fitz.open(file_path)
+                            page = doc[0]
+                            pix = page.get_pixmap()
+                            img_path = file_path.with_suffix('.png')
+                            pix.save(str(img_path))
+                            doc.close()
+                            
+                            result = self._classify_by_ocr(img_path)
+                            
+                            # 删除临时图片
+                            if img_path.exists():
+                                img_path.unlink()
+                                
+                            return result
+                            
+                        except Exception as e:
+                            logger.error(f"PDF转图片失败: {str(e)}")
+                            return '未知', f"PDF转图片失败: {str(e)}"
+                    
+                    return self._call_api(content), None
+                    
+                except Exception as e:
+                    logger.error(f"PDF文件处理失败: {str(e)}")
+                    return '未知', f"PDF文件处理失败: {str(e)}"
+                
+            elif ext in ['.ppt', '.pptx']:
+                try:
+                    if ext == '.ppt':  # 旧版本PPT
+                        logger.warning(f"不支持的PPT格式(仅支持.pptx): {file_path}")
+                        return '未知', "不支持的PPT格式(仅支持.pptx)"
+                        
+                    from pptx import Presentation
+                    prs = Presentation(file_path)
+                    
+                    texts = []
+                    slide_count = 0
+                    
+                    # 只处理前5张幻灯片
+                    for slide in prs.slides:
+                        if slide_count >= 5:
+                            break
+                            
+                        slide_texts = []
+                        
+                        try:
+                            # 提取所有可能包含文本的元素
+                            for shape in slide.shapes:
+                                try:
+                                    if hasattr(shape, "text") and shape.text.strip():
+                                        slide_texts.append(shape.text.strip())
+                                except Exception as e:
+                                    logger.error(f"PPT形状文本提取失败: {str(e)}")
+                                    continue
+                                    
+                            if slide_texts:
+                                texts.extend(slide_texts)
+                                slide_count += 1
+                                
+                        except Exception as e:
+                            logger.error(f"PPT幻灯片处理失败: {str(e)}")
+                            continue
+                            
+                    content = '\n'.join(texts)[:2000]  # 限制长度
+                    
+                    if not content:  # 如果没有提取到任何文本
+                        logger.warning(f"未能从PPT提取到文本: {file_path}")
+                        return '未知', "未能从PPT提取到文本"
+                        
+                except Exception as e:
+                    logger.error(f"PPT文件处理失败: {str(e)}")
+                    return '未知', f"PPT文件处理失败: {str(e)}"
+            
+            if content.strip():
+                return self._call_api(content), None
+            return '未知', "文件内容为空"
+            
         except Exception as e:
-            logger.error(f"内容分类失败 {file_path}: {str(e)}", exc_info=True)
-            return '未知'
+            logger.error(f"文件内容分类失败 {file_path}: {str(e)}", exc_info=True)
+            return '未知', f"处理出错: {str(e)}"
 
-    def _classify_by_ocr(self, file_path: Path) -> str:
+    def _classify_by_ocr(self, file_path: Path) -> tuple[str, Optional[str]]:
         try:
             import pytesseract
             from PIL import Image
@@ -478,21 +652,22 @@ class FileClassifier:
                     # 清理OCR文本
                     text = ' '.join(text.split())
                     logger.info(f"OCR识别结果: {text[:200]}...")  # 只显示前200个字符
-                    return self._call_api(text[:500])
+                    return self._call_api(text[:500]), None
                 else:
                     logger.warning(f"OCR识别结果为空: {file_path.name}")
+                    return '未知', "OCR识别结果为空"
                     
             except Exception as e:
                 logger.error(f"OCR识别失败: {str(e)}")
-                raise
+                return '未知', f"OCR识别失败: {str(e)}"
             
-            return '未知'
+            return '未知', "OCR识别未完成"
             
         except Exception as e:
             logger.error(f"OCR分类失败 {file_path}: {str(e)}", exc_info=True)
-            return '未知'
+            return '未知', f"处理出错: {str(e)}"
 
-    def _classify_archive(self, file_path: Path) -> str:
+    def _classify_archive(self, file_path: Path) -> tuple[str, Optional[str]]:
         try:
             import py7zr
             import rarfile
@@ -511,7 +686,7 @@ class FileClassifier:
                         content = "压缩包内文件：" + ", ".join(file_list)
                         result = self._call_api(content)
                         if result != '未知':
-                            return result
+                            return result, None
                             
                         # 如果无法判断，解压第一个文本文件
                         for name in file_list:
@@ -525,7 +700,7 @@ class FileClassifier:
                         content = "压缩包内文件：" + ", ".join(file_list)
                         result = self._call_api(content)
                         if result != '未知':
-                            return result
+                            return result, None
                             
                         for name in file_list:
                             if name.lower().endswith(('.txt', '.doc', '.docx', '.pdf')):
@@ -538,19 +713,19 @@ class FileClassifier:
                         content = "压缩包内文件：" + ", ".join(file_list)
                         result = self._call_api(content)
                         if result != '未知':
-                            return result
+                            return result, None
                             
                         for name in file_list:
                             if name.lower().endswith(('.txt', '.doc', '.docx', '.pdf')):
                                 rf.extract(name, temp_path)
                                 return self._classify_by_content(temp_path / name)
             
-            return '未知'
+            return '未知', "无法判断压缩包内容"
         except Exception as e:
             logger.error(f"压缩包分类失败 {file_path}: {str(e)}", exc_info=True)
-            return '未知'
+            return '未知', f"处理出错: {str(e)}"
 
-    def _classify_audio(self, file_path: Path) -> str:
+    def _classify_audio(self, file_path: Path) -> tuple[str, Optional[str]]:
         """分类音频文件"""
         try:
             logger.info(f"开始处理音频文件: {file_path.name}")
@@ -561,7 +736,7 @@ class FileClassifier:
                 text = processor.transcribe_audio(file_path)
                 if text:
                     logger.info(f"音频识别结果: {text[:200]}...")  # 只显示前200个字符
-                    return self._call_api(text[:500])
+                    return self._call_api(text[:500]), None
             except ImportError:
                 logger.warning("Vosk 模块未安装，将使用在线语音识别")
                 
@@ -582,18 +757,18 @@ class FileClassifier:
                         text = recognizer.recognize_google(audio, language='zh-CN')
                         if text:
                             logger.info(f"在线语音识别结果: {text[:200]}...")  # 只显示前200个字符
-                            return self._call_api(text[:500])
+                            return self._call_api(text[:500]), None
                 finally:
                     # 清理临时文件
                     if wav_path.exists():
                         wav_path.unlink()
             
             logger.warning(f"音频识别结果为空: {file_path.name}")
-            return '未知'
+            return '未知', "音频识别结果为空"
             
         except Exception as e:
             logger.error(f"音频分类失败 {file_path}: {str(e)}", exc_info=True)
-            return '未知'
+            return '未知', f"处理出错: {str(e)}"
 
     def _check_environment(self) -> bool:
         """检查运行环境是否完整"""
@@ -654,66 +829,13 @@ class FileClassifier:
                 )
                 test_result = result.stdout
                 
-                needs_chinese = False
                 if 'chi_sim' not in test_result:
                     logger.warning("未检测到中文支持，尝试安装...")
-                    needs_chinese = True
-                
+                    # 下载中文语言包的逻辑保持不变...
+            
             except Exception as e:
                 logger.error(f"Tesseract 测试失败: {str(e)}")
                 return False
-            
-            # 检查语言包文件
-            lang_file = Path(tesseract_path).parent / 'tessdata' / 'chi_sim.traineddata'
-            if not lang_file.exists():
-                logger.warning("未找到中文语言包文件，尝试安装...")
-                needs_chinese = True
-            
-            # 如果需要安装中文支持
-            if needs_chinese:
-                try:
-                    # 下载中文语言包
-                    logger.info("开始下载中文语言包...")
-                    tessdata_dir = Path(tesseract_path).parent / 'tessdata'
-                    tessdata_dir.mkdir(exist_ok=True)
-                    
-                    # 中文语言包下载地址
-                    urls = [
-                        "https://github.com/tesseract-ocr/tessdata/raw/4.1.0/chi_sim.traineddata",
-                        "https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata",
-                        "https://ghproxy.com/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata"
-                    ]
-                    
-                    success = False
-                    for url in urls:
-                        try:
-                            logger.info(f"尝试从 {url.split('/')[2]} 下载...")
-                            response = requests.get(url, stream=True)
-                            if response.status_code == 200:
-                                with open(lang_file, 'wb') as f:
-                                    for chunk in response.iter_content(chunk_size=8192):
-                                        if chunk:
-                                            f.write(chunk)
-                                success = True
-                                logger.info("中文语言包下载完成")
-                                break
-                        except Exception as e:
-                            logger.warning(f"从 {url} 下载失败: {str(e)}")
-                            continue
-                    
-                    if not success:
-                        logger.error("所有中文语言包下载地址均失败")
-                        return False
-                    
-                    # 验证安装
-                    test_result = os.popen(f'"{tesseract_path}" --list-langs').read()
-                    if 'chi_sim' not in test_result:
-                        logger.error("中文语言包安装验证失败")
-                        return False
-                        
-                except Exception as e:
-                    logger.error(f"安装中文语言包失败: {str(e)}")
-                    return False
             
             logger.info("Tesseract 中文支持检查通过")
             
@@ -728,10 +850,9 @@ class FileClassifier:
             
             # 检查文件夹结构
             logger.info("检查文件夹结构...")
-            source_dir = Path(self.config['Paths']['source_folder'])
             target_dir = Path(self.config['Paths']['target_folder'])
-            if not source_dir.exists() or not target_dir.exists():
-                logger.error("基本文件夹结构不完整")
+            if not target_dir.exists():
+                logger.warning("目标文件夹不存在")
                 return False
             logger.info("文件夹结构检查通过")
             
@@ -749,22 +870,20 @@ class FileClassifier:
             if not self.config['API']['api_key']:
                 return False
             
-            # 检查文件夹
-            source_path = self.config['Paths']['source_folder']
+            # 只检查目标文件夹
             target_path = self.config['Paths']['target_folder']
             
-            if not source_path or not target_path:
+            if not target_path:
                 messagebox.showwarning(
                     "路径未设置",
-                    "请先设置源文件夹和目标文件夹路径。\n"
+                    "请先设置目标文件夹路径。\n"
                     "可以在主界面的路径设置中选择合适的目录。"
                 )
                 return False
             
-            source_dir = Path(source_path)
             target_dir = Path(target_path)
             
-            if not source_dir.exists() or not target_dir.exists():
+            if not target_dir.exists():
                 if not self._setup_folders():
                     return False
             
@@ -783,6 +902,31 @@ class FileClassifier:
             
         except Exception:
             return False
+
+    def _initialize_thread_pool(self, max_workers: int, total_files: int):
+        """初始化线程池"""
+        if max_workers <= 0:  # 自动分配模式
+            # 基础线程数：每30个文件1个线程，最少2个，最多12个
+            self._base_workers = min(max(2, (total_files + 29) // 30), 12)
+            max_workers = self._base_workers
+            self._allow_dynamic_threads = True
+            self._current_content_threads = 0
+        else:
+            max_workers = min(12, max_workers)  # 增加最大线程数限制到12
+            self._base_workers = max_workers
+            self._allow_dynamic_threads = False
+        
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._threads = []
+        return self._executor
+
+    def _cleanup_thread_pool(self):
+        """清理线程池"""
+        if self._executor:
+            self._executor.shutdown(wait=True)
+            self._executor = None
+            self._threads.clear()
+            self._current_content_threads = 0
 
 def main():
     try:

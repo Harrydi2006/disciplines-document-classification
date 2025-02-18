@@ -28,6 +28,7 @@ venv/
 ENV/
 Scripts/
 pyvenv.cfg
+.installed
 
 # IDE
 .idea/
@@ -35,17 +36,39 @@ pyvenv.cfg
 *.swp
 *.swo
 
-# 项目特定
+# Logs
 logs/
-target/
-models/
 *.log
-*.spec
+
+# Local Config
 config.conf
 config.conf[0-9]*
-tesseract_install.inf
-!config.conf.template
 
-# 构建输出
+# Temp files
+*.tmp
+*.temp
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.zip
+*.rar
+*.7z
+*.mp3
+*.wav
+*.m4a
+
+# Build
 dist/
 build/
+*.spec
+
+# Project specific
+target/
+models/
+file-classifier-master*/
+tesseract_install.inf

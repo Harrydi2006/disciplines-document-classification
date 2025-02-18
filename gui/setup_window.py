@@ -12,10 +12,7 @@ import configparser
 import time
 import tkinter.messagebox as messagebox
 import logging
-from concurrent.futures import ThreadPoolExecutor
-import json
-import py7zr
-import hashlib
+from tkinter import filedialog
 
 logger = logging.getLogger(__name__)
 
@@ -24,70 +21,25 @@ class SetupWindow:
     FFMPEG_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
     TESSERACT_URL = "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe"
     
-    # GitHub 镜像加速服务
-    GITHUB_MIRRORS = [
-        'https://bgithub.xyz',
-        'https://kkgithub.com',
-        'https://gitclone.com',
-        'https://github.ur1.fun',
-        'https://moeyy.cn/gh-proxy/',
-        'https://ghp.ci/',
-        'https://gh-proxy.com/',
-        'https://ghproxy.net/',
-        'https://ghproxy.homeboyc.cn/',
-        'http://toolwa.com/github/'
+    # 镜像地址
+    FFMPEG_MIRRORS = [
+        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+        "https://huggingface.co/datasets/your-mirror/ffmpeg/resolve/main/ffmpeg-master-latest-win64-gpl.zip",
+        "https://mirror.ghproxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    ]
+    
+    TESSERACT_MIRRORS = [
+        "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe",
+        "https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe",
+        "https://mirror.ghproxy.com/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe"
     ]
     
     # 更新中文语言包下载地址
     TESSERACT_CHI_SIM_MIRRORS = [
-        'https://raw.fastgit.org/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata',
-        'https://cdn.jsdelivr.net/gh/tesseract-ocr/tessdata@4.1.0/chi_sim.traineddata',
-        'https://ghproxy.net/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata',
-        'https://gitee.com/mirrors/tesseract/raw/master/tessdata/chi_sim.traineddata',
+        "https://github.com/tesseract-ocr/tessdata/raw/4.1.0/chi_sim.traineddata",  # 使用稳定版本
+        "https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata",
+        "https://ghproxy.com/https://raw.githubusercontent.com/tesseract-ocr/tessdata/4.1.0/chi_sim.traineddata"
     ]
-    
-    # 更新镜像地址
-    mirrors = {
-        'default': {
-            'tesseract': [
-                'https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe'
-            ],
-            'ffmpeg': 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
-        },
-        'china': {
-            'tesseract': [
-                # 国内镜像
-                'https://download.fastgit.org/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://hub.fastgit.xyz/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://ghproxy.net/https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.1.20230401/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                # 备用下载地址
-                'https://raw.fastgit.org/UB-Mannheim/tesseract/master/installer/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                'https://cdn.jsdelivr.net/gh/UB-Mannheim/tesseract@master/installer/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-                # 百度网盘镜像（如果有的话）
-                'https://pan.baidu.com/s/1xxx',  # 需要替换为实际的分享链接
-                # 阿里云 OSS 镜像（如果有的话）
-                'https://your-bucket.oss-cn-hangzhou.aliyuncs.com/tesseract-ocr-w64-setup-5.3.1.20230401.exe',
-            ],
-            'ffmpeg': [
-                'https://gitee.com/mirrors/ffmpeg/raw/master/ffmpeg-master-latest-win64-gpl.zip',
-                'https://mirrors.cloud.tencent.com/ffmpeg/ffmpeg-master-latest-win64-gpl.zip',
-                'https://mirrors.aliyun.com/ffmpeg/ffmpeg-master-latest-win64-gpl.zip',
-            ],
-            'pip': 'https://pypi.tuna.tsinghua.edu.cn/simple'
-        }
-    }
-    
-    # 添加文件校验和
-    FILE_CHECKSUMS = {
-        'tesseract': {
-            'tesseract-ocr-w64-setup-5.3.1.20230401.exe': 'a7d4c69e5b336c4f19eb3cca6c4a2d558fed685b9d679c60393886b4b8641481',
-            'chi_sim.traineddata': '06eac7a56c20f1f66889d65a3d7c2e9871f0d3fea0b683475a4c8c21c35ca646',
-        },
-        'ffmpeg': {
-            'ffmpeg-master-latest-win64-gpl.zip': None  # 动态文件，每次构建的哈希值不同
-        }
-    }
     
     def __init__(self):
         self.root = tk.Tk()
@@ -195,6 +147,93 @@ class SetupWindow:
         )
         self.start_button.pack(side=tk.RIGHT, pady=5)
         
+        # 文件列表
+        list_frame = ttk.LabelFrame(main_frame, text="文件列表", padding="5")
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 添加按钮框架
+        buttons_frame = ttk.Frame(list_frame)
+        buttons_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # 添加文件和文件夹按钮
+        ttk.Button(
+            buttons_frame,
+            text="添加文件",
+            command=self._add_files
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            buttons_frame,
+            text="添加文件夹",
+            command=self._add_folder
+        ).pack(side=tk.LEFT, padx=2)
+        
+        # 选择按钮
+        ttk.Button(
+            buttons_frame,
+            text="全选",
+            command=self._select_all
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            buttons_frame,
+            text="反选",
+            command=self._invert_selection
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            buttons_frame,
+            text="取消全选",
+            command=self._deselect_all
+        ).pack(side=tk.LEFT, padx=2)
+        
+        # 文件类型选择按钮
+        ttk.Button(
+            buttons_frame,
+            text="选择文档",
+            command=lambda: self._select_by_type('doc')
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            buttons_frame,
+            text="选择压缩包",
+            command=lambda: self._select_by_type('archive')
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            buttons_frame,
+            text="选择音频",
+            command=lambda: self._select_by_type('audio')
+        ).pack(side=tk.LEFT, padx=2)
+        
+        # 创建树形视图
+        columns = ("选择", "文件名", "状态", "分类结果")
+        self.tree = ttk.Treeview(list_frame, columns=columns, show="headings")
+        
+        # 设置列
+        self.tree.heading("选择", text="选择")
+        self.tree.heading("文件名", text="文件名")
+        self.tree.heading("状态", text="状态")
+        self.tree.heading("分类结果", text="分类结果")
+        
+        self.tree.column("选择", width=50)
+        self.tree.column("文件名", width=300)
+        self.tree.column("状态", width=100)
+        self.tree.column("分类结果", width=100)
+        
+        # 添加复选框状态字典
+        self.checkboxes = {}
+        
+        # 绑定点击事件
+        self.tree.bind('<Button-1>', self._on_click)
+        
+        # 添加滚动条
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
     def _center_window(self):
         self.root.update_idletasks()
         width = self.root.winfo_width()
@@ -203,60 +242,43 @@ class SetupWindow:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
         
-    def _verify_file(self, file_path: Path, expected_hash: str = None, file_type: str = None) -> bool:
-        """验证文件完整性"""
-        if not file_path.exists():
-            return False
-            
-        if not expected_hash and file_type == 'ffmpeg':
-            # FFmpeg 是动态构建的，只检查文件大小
-            min_size = 100 * 1024 * 1024  # 最小 100MB
-            return file_path.stat().st_size >= min_size
-            
-        try:
-            sha256_hash = hashlib.sha256()
-            with open(file_path, "rb") as f:
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(byte_block)
-            actual_hash = sha256_hash.hexdigest()
-            
-            if actual_hash != expected_hash:
-                self._add_log(f"文件校验失败: {file_path.name}")
-                self._add_log(f"预期哈希值: {expected_hash}")
-                self._add_log(f"实际哈希值: {actual_hash}")
-                return False
-                
-            self._add_log(f"文件校验成功: {file_path.name}")
-            return True
-            
-        except Exception as e:
-            self._add_log(f"文件校验出错: {str(e)}")
-            return False
-
     def _download_file(self, urls, progress_bar, status_label, name):
-        """从最快的镜像下载文件，并验证完整性"""
-        try:
-            url = self.select_fastest_mirror(urls, name)
-            file_path = self._download_from_url(url, progress_bar, status_label, name)
+        """从多个镜像下载文件，带重试功能"""
+        if isinstance(urls, str):
+            urls = [urls]
             
-            # 获取文件类型和预期哈希值
-            file_type = name.lower()
-            file_name = file_path.name
-            expected_hash = self.FILE_CHECKSUMS.get(file_type, {}).get(file_name)
-            
-            # 验证文件完整性
-            self._add_log(f"正在验证 {name} 文件完整性...")
-            if not self._verify_file(file_path, expected_hash, file_type):
-                # 如果验证失败，删除文件并重试其他镜像
-                file_path.unlink()
-                raise Exception(f"{name} 文件校验失败")
+        downloads_dir = Path('downloads')
+        downloads_dir.mkdir(exist_ok=True)
+        
+        for url in urls:
+            try:
+                status_label.config(text=f"{name}: 正在从 {url.split('/')[2]} 下载...")
                 
-            return file_path
+                response = requests.get(url, stream=True)
+                total_size = int(response.headers.get('content-length', 0))
+                
+                if response.status_code != 200:
+                    raise requests.RequestException(f"HTTP {response.status_code}")
+                
+                file_path = downloads_dir / url.split('/')[-1]
+                progress_bar['maximum'] = total_size
+                
+                with open(file_path, 'wb') as f:
+                    downloaded = 0
+                    for data in response.iter_content(chunk_size=8192):
+                        downloaded += len(data)
+                        f.write(data)
+                        progress_bar['value'] = downloaded
+                        self.root.update()
+                
+                return file_path
+                
+            except Exception as e:
+                status_label.config(text=f"{name}: 从 {url.split('/')[2]} 下载失败 - {str(e)}")
+                continue
+        
+        raise Exception(f"所有镜像下载失败")
             
-        except Exception as e:
-            self._add_log(f"下载 {name} 失败: {str(e)}")
-            raise
-
     def _check_ffmpeg(self) -> bool:
         """检查 FFmpeg 是否已安装"""
         try:
@@ -320,13 +342,9 @@ class SetupWindow:
             self._add_log("开始安装 FFmpeg...")
             self.ffmpeg_label.config(text="FFmpeg: 准备下载...")
             
-            # 选择最佳镜像源
-            mirror = self.select_best_mirror()
-            url = self.mirrors[mirror]['ffmpeg']
-            
             # 下载文件
             zip_path = self._download_file(
-                url,
+                self.FFMPEG_MIRRORS,
                 self.ffmpeg_progress,
                 self.ffmpeg_label,
                 "FFmpeg"
@@ -340,7 +358,6 @@ class SetupWindow:
                 self._add_log("删除旧版本 FFmpeg...")
                 shutil.rmtree(ffmpeg_dir)
             
-            # 使用 zipfile 解压 zip 文件
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 root_dir = zip_ref.namelist()[0].split('/')[0]
                 self._add_log("解压 FFmpeg 文件...")
@@ -376,23 +393,15 @@ class SetupWindow:
             return False
             
     def _install_chinese_language_pack(self):
-        """安装中文语言包（添加校验）"""
+        """安装中文语言包"""
         try:
             self._add_log("开始安装中文语言包...")
             tessdata_dir = Path(r'C:\Program Files\Tesseract-OCR\tessdata')
             lang_file = tessdata_dir / 'chi_sim.traineddata'
             
             if lang_file.exists():
-                # 验证已存在的文件
-                if self._verify_file(
-                    lang_file,
-                    self.FILE_CHECKSUMS['tesseract']['chi_sim.traineddata']
-                ):
-                    self._add_log("中文语言包已存在且验证通过")
-                    return True
-                else:
-                    self._add_log("现有中文语言包验证失败，将重新下载")
-                    lang_file.unlink()
+                self._add_log("中文语言包已存在")
+                return True
             
             # 确保tessdata目录存在
             tessdata_dir.mkdir(parents=True, exist_ok=True)
@@ -444,7 +453,7 @@ class SetupWindow:
             
             # 下载安装程序
             exe_path = self._download_file(
-                self.mirrors['china']['tesseract'],
+                self.TESSERACT_MIRRORS,
                 self.tesseract_progress,
                 self.tesseract_label,
                 "Tesseract"
@@ -649,157 +658,109 @@ class SetupWindow:
             logger.error(f"安装程序运行失败: {str(e)}")
             sys.exit(1)
 
-    def check_connection(self, url, timeout=5):
-        """检查连接速度"""
-        try:
-            start_time = time.time()
-            response = requests.get(url, timeout=timeout, stream=True)
-            if response.status_code == 200:
-                # 只下载前 8KB 来测试速度
-                for _ in response.iter_content(chunk_size=8192):
-                    break
-                elapsed = time.time() - start_time
-                return elapsed
-        except Exception as e:
-            self._add_log(f"连接测试失败: {url}, 错误: {str(e)}")
-            return float('inf')
-        return float('inf')
-
-    def check_is_china_ip(self):
-        """检查是否为中国 IP"""
-        try:
-            # 使用 ipapi.co 检查 IP 归属地
-            response = requests.get('https://ipapi.co/json/', timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                country_code = data.get('country_code')
-                self._add_log(f"检测到 IP 归属地: {data.get('country_name', '未知')}")
-                return country_code == 'CN'
-        except Exception as e:
-            self._add_log(f"IP 归属地检测失败: {str(e)}")
-            
-            # 备用方案：使用 cip.cc
-            try:
-                response = requests.get('http://cip.cc', timeout=5)
-                if response.status_code == 200 and '中国' in response.text:
-                    self._add_log("备用检测确认为中国 IP")
-                    return True
-            except Exception as e2:
-                self._add_log(f"备用 IP 检测也失败: {str(e2)}")
+    def _add_files(self):
+        """添加文件到列表"""
+        files = filedialog.askopenfilenames(
+            title="选择文件",
+            filetypes=[
+                ("所有支持的文件", "*.txt *.doc *.docx *.pdf *.ppt *.pptx *.jpg *.png *.jpeg *.zip *.rar *.7z *.mp3 *.wav *.m4a"),
+                ("文档", "*.txt *.doc *.docx *.pdf *.ppt *.pptx"),  # 添加 ppt 和 pptx
+                ("图片", "*.jpg *.png *.jpeg"),
+                ("压缩包", "*.zip *.rar *.7z"),
+                ("音频", "*.mp3 *.wav *.m4a"),
+                ("所有文件", "*.*")
+            ]
+        )
         
+        for file in files:
+            file_path = Path(file)
+            if not self._is_file_in_tree(file_path):
+                item = self.tree.insert('', tk.END, values=('☐', file_path.name, "等待处理", "未分类"))
+                self.checkboxes[item] = False
+                self.files_status[str(file_path)] = "等待处理"
+                self.files_results[str(file_path)] = "未分类"
+
+    def _add_folder(self):
+        """添加文件夹中的文件到列表"""
+        folder = filedialog.askdirectory(title="选择文件夹")
+        if folder:
+            folder_path = Path(folder)
+            for file_path in folder_path.rglob('*'):
+                if file_path.is_file() and not self._is_file_in_tree(file_path):
+                    item = self.tree.insert('', tk.END, values=('☐', file_path.name, "等待处理", "未分类"))
+                    self.checkboxes[item] = False
+                    self.files_status[str(file_path)] = "等待处理"
+                    self.files_results[str(file_path)] = "未分类"
+
+    def _is_file_in_tree(self, file_path: Path) -> bool:
+        """检查文件是否已在列表中"""
+        for item in self.tree.get_children():
+            if self.tree.item(item)['values'][1] == file_path.name:
+                return True
         return False
 
-    def select_best_mirror(self):
-        """选择最佳镜像源"""
-        self._add_log("正在检测网络环境...")
-        
-        # 首先检查是否为中国 IP
-        if self.check_is_china_ip():
-            self._add_log("检测到中国 IP，将优先使用国内镜像")
-            return 'china'
-        
-        # 如果不是中国 IP，测试镜像速度
-        self._add_log("正在测试镜像源连接速度...")
-        test_urls = {
-            'default': 'https://github.com',
-            'china': 'https://gitee.com'
+    def _on_click(self, event):
+        """处理点击事件"""
+        region = self.tree.identify_region(event.x, event.y)
+        if region == "cell":
+            column = self.tree.identify_column(event.x)
+            if column == "#1":  # 选择列
+                item = self.tree.identify_row(event.y)
+                if item:
+                    status = self.tree.item(item)['values'][2]
+                    if status != "已完成":  # 只允许选择未完成的文件
+                        self.checkboxes[item] = not self.checkboxes[item]
+                        self.tree.set(item, "选择", '☑' if self.checkboxes[item] else '☐')
+
+    def _select_all(self):
+        """全选"""
+        for item in self.tree.get_children():
+            if self.tree.item(item)['values'][2] != "已完成":
+                self.checkboxes[item] = True
+                self.tree.set(item, "选择", '☑')
+
+    def _deselect_all(self):
+        """取消全选"""
+        for item in self.tree.get_children():
+            self.checkboxes[item] = False
+            self.tree.set(item, "选择", '☐')
+
+    def _invert_selection(self):
+        """反选"""
+        for item in self.tree.get_children():
+            if self.tree.item(item)['values'][2] != "已完成":
+                self.checkboxes[item] = not self.checkboxes[item]
+                self.tree.set(item, "选择", '☑' if self.checkboxes[item] else '☐')
+
+    def _select_by_type(self, file_type: str):
+        """根据文件类型选择"""
+        extensions = {
+            'doc': ('.txt', '.doc', '.docx', '.pdf', '.ppt', '.pptx'),  # 添加 ppt 和 pptx
+            'archive': ('.zip', '.rar', '.7z'),
+            'audio': ('.mp3', '.wav', '.m4a')
         }
         
-        results = {}
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(self.check_connection, url): name 
-                      for name, url in test_urls.items()}
-            
-            for future in futures:
-                name = futures[future]
-                try:
-                    speed = future.result()
-                    results[name] = speed
-                    self._add_log(f"镜像源 {name} 响应时间: {speed:.2f}秒")
-                except Exception as e:
-                    self._add_log(f"测试镜像源 {name} 失败: {str(e)}")
-                    results[name] = float('inf')
-        
-        # 选择响应最快的镜像源
-        best_mirror = min(results.items(), key=lambda x: x[1])[0]
-        self._add_log(f"选择镜像源: {best_mirror}")
-        return best_mirror
+        for item in self.tree.get_children():
+            values = self.tree.item(item)['values']
+            if values[2] != "已完成":  # 只选择未完成的文件
+                file_name = values[1]
+                ext = Path(file_name).suffix.lower()
+                if ext in extensions[file_type]:
+                    self.checkboxes[item] = True
+                    self.tree.set(item, "选择", '☑')
 
-    def download_dependencies(self):
-        """下载依赖"""
-        # 选择最佳镜像源
-        mirror = self.select_best_mirror()
-        urls = self.mirrors[mirror]
-        
-        # 如果使用中国镜像，设置 pip 镜像
-        if mirror == 'china':
-            self._add_log("使用中国镜像源下载依赖")
-            import subprocess
-            try:
-                subprocess.run([
-                    'pip', 'config', 'set', 'global.index-url',
-                    'https://pypi.tuna.tsinghua.edu.cn/simple'
-                ], check=True)
-                self._add_log("已设置 pip 镜像源")
-            except Exception as e:
-                self._add_log(f"设置 pip 镜像源失败: {str(e)}")
-        
-        # 下载 Tesseract
-        self._download_file(urls['tesseract'], self.tesseract_progress, self.tesseract_label, "Tesseract")
-        
-        # 下载 FFmpeg
-        self._download_file(urls['ffmpeg'], self.ffmpeg_progress, self.ffmpeg_label, "FFmpeg")
-        
-        # ... 其他下载和安装步骤 ...
-
-    def download_file(self, url, filename):
-        """带进度条的文件下载"""
-        try:
-            response = requests.get(url, stream=True)
-            total_size = int(response.headers.get('content-length', 0))
-            
-            with open(filename, 'wb') as f, tqdm(
-                desc=f"下载 {filename}",
-                total=total_size,
-                unit='iB',
-                unit_scale=True
-            ) as pbar:
-                for data in response.iter_content(chunk_size=8192):
-                    size = f.write(data)
-                    pbar.update(size)
-                    
-        except Exception as e:
-            self._add_log(f"下载 {filename} 失败: {str(e)}")
-            raise
-
-    def select_fastest_mirror(self, urls, name="文件"):
-        """选择最快的镜像"""
-        if isinstance(urls, str):
-            urls = [urls]
-            
-        self._add_log(f"正在测试 {name} 的下载速度...")
-        results = []
-        
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(self.check_connection, url): url for url in urls}
-            
-            for future in futures:
-                url = futures[future]
-                try:
-                    speed = future.result()
-                    if speed != float('inf'):
-                        results.append((url, speed))
-                        self._add_log(f"镜像 {url.split('/')[2]} 响应时间: {speed:.2f}秒")
-                except Exception as e:
-                    self._add_log(f"测试镜像 {url.split('/')[2]} 失败: {str(e)}")
-        
-        if not results:
-            raise Exception(f"所有 {name} 镜像都无法访问")
-            
-        # 选择最快的镜像
-        fastest_url = min(results, key=lambda x: x[1])[0]
-        self._add_log(f"选择最快的镜像: {fastest_url.split('/')[2]}")
-        return fastest_url
+    def _update_file_status(self, filename: str, status: str, result: str):
+        """更新文件状态"""
+        for item in self.tree.get_children():
+            if self.tree.item(item)['values'][1] == filename:
+                self.tree.item(item, values=('☐', filename, status, result))
+                if status == "已完成":
+                    # 使用灰色标记已完成的文件
+                    self.tree.tag_configure('completed', foreground='gray')
+                    self.tree.item(item, tags=('completed',))
+                    # 取消选择并禁用复选框
+                    self.checkboxes[item] = False
+                break
 
 def check_first_run() -> bool:
     """检查是否首次运行"""

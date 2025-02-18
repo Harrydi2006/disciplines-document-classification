@@ -120,154 +120,52 @@ def find_python_dll():
     print("未找到 Python DLL")
     return None
 
-def build():
+def build_exe():
     """构建可执行文件"""
-    print("Starting build process...")
+    print("开始构建可执行文件...")
     
     # 清理旧的构建文件
-    clean_build()
+    for path in ['build', 'dist']:
+        if os.path.exists(path):
+            shutil.rmtree(path)
     
-    # 创建运行时钩子文件
-    with open('runtime_hook.py', 'w', encoding='utf-8') as f:
-        f.write("""
-import os
-import sys
-import tkinter as tk
-
-def setup_environment():
-    try:
-        print("Setting up environment...")
-        if hasattr(sys, '_MEIPASS'):
-            base_path = sys._MEIPASS
-            print(f"MEIPASS path: {base_path}")
-            
-            # 设置资源目录
-            os.environ['RESOURCE_DIR'] = base_path
-            print(f"Resource dir set to: {base_path}")
-            
-            # 只创建日志目录
-            log_dir = os.path.join(os.getcwd(), 'logs')
-            os.makedirs(log_dir, exist_ok=True)
-            print(f"Created logs directory: {log_dir}")
-            
-            # 处理配置文件
-            config_template = os.path.join(base_path, 'config.conf.template')
-            config_file = 'config.conf'
-            if not os.path.exists(config_file) and os.path.exists(config_template):
-                import shutil
-                shutil.copy2(config_template, config_file)
-                print(f"Copied config template to: {config_file}")
-            
-            # 添加模块搜索路径
-            for path in [base_path, os.path.join(base_path, 'gui'), os.path.join(base_path, 'utils')]:
-                if path not in sys.path:
-                    sys.path.insert(0, path)
-                    print(f"Added to sys.path: {path}")
-                    
-            # 设置日志文件路径
-            os.environ['LOG_DIR'] = log_dir
-            
-            # 初始化 tkinter 根窗口
-            root = tk.Tk()
-            root.withdraw()
-            root.title('文件分类助手')
-            root.attributes('-alpha', 0)
-            root.attributes('-topmost', True)
-            root.overrideredirect(True)
-            root.geometry('0x0+0+0')
-            root.wm_attributes('-toolwindow', True)
-            
-            # 保存根窗口引用
-            global _root
-            _root = root
-            
-    except Exception as e:
-        print(f"Error in setup_environment: {str(e)}")
-        import traceback
-        traceback.print_exc()
-
-# 设置环境
-setup_environment()
-""")
-
-    # PyInstaller 参数
-    params = [
-        'file_classifier.py',
-        '--name=FileClassifier',
-        '--noconsole',
-        '--windowed',
-        '--noconfirm',
-        '--clean',
-        '--add-data=gui;gui',
-        '--add-data=utils;utils',
-        '--add-data=config.conf.template;.',
-        '--add-data=resources;resources',
-        '--icon=resources/icon.ico',
-        '--onefile',
-        '--debug=all',
+    # 确保资源目录存在
+    resources_dir = Path('resources')
+    resources_dir.mkdir(exist_ok=True)
+    
+    # 复制配置模板
+    shutil.copy2('config.conf.template', resources_dir / 'config.conf.template')
+    
+    # PyInstaller参数
+    args = [
+        'file_classifier.py',  # 主程序文件
+        '--name=FileClassifier',  # 输出文件名
+        '--onefile',  # 打包成单个文件
+        '--noconsole',  # 不显示控制台
+        '--icon=resources/icon.ico',  # 程序图标
+        '--add-data=resources;resources',  # 添加资源文件
+        '--hidden-import=PIL._tkinter_finder',  # 添加隐藏导入
+        '--hidden-import=win32gui',
+        '--hidden-import=win32con',
+        '--hidden-import=pythoncom',
+        '--hidden-import=pywintypes',
+        '--hidden-import=win32api',
         '--hidden-import=tkinter',
         '--hidden-import=tkinter.ttk',
-        '--hidden-import=PIL',
-        '--hidden-import=PIL._tkinter_finder',
-        '--hidden-import=pytesseract',
-        '--hidden-import=docx',
-        '--hidden-import=PyPDF2',
-        '--hidden-import=speech_recognition',
-        '--hidden-import=pydub',
-        '--hidden-import=py7zr',
-        '--hidden-import=rarfile',
-        '--hidden-import=zipfile',
-        '--hidden-import=utils.logger',
-        '--hidden-import=gui.main_window',
-        '--hidden-import=gui.setup_window',
-        '--hidden-import=win32gui',
-        '--collect-all=gui',
-        '--runtime-hook=runtime_hook.py',
-        '--exclude-module=tkinter.test',  # 排除测试模块
-        '--exclude-module=_tkinter.test',
-        '--exclude-module=PIL.ImageTk',  # 排除不需要的 PIL 模块
-        '--exclude-module=PIL._imagingtk',
+        '--hidden-import=tkinter.messagebox',
+        '--hidden-import=tkinter.filedialog',
+        '--clean',  # 清理临时文件
+        '--uac-admin',  # 请求管理员权限
     ]
     
-    # 查找 Tcl/Tk 库路径
-    import tkinter
-    import _tkinter
-    tcl_tk_paths = []
+    # 运行PyInstaller
+    PyInstaller.__main__.run(args)
     
-    # 尝试多个可能的路径
-    possible_paths = [
-        os.path.dirname(tkinter.__file__),
-        os.path.dirname(_tkinter.__file__),
-        os.path.join(sys.prefix, 'tcl'),
-        os.path.join(sys.prefix, 'lib', 'tcl'),
-        os.path.join(sys.prefix, 'lib', 'tk'),
-    ]
-    
-    for base_path in possible_paths:
-        if os.path.exists(base_path):
-            # 查找 tcl*.dll 和 tk*.dll
-            for root, dirs, files in os.walk(base_path):
-                for file in files:
-                    if file.startswith(('tcl', 'tk')) and file.endswith('.dll'):
-                        dll_path = os.path.join(root, file)
-                        tcl_tk_paths.append((dll_path, '.'))
-    
-    # 添加找到的 Tcl/Tk DLL
-    for src, dst in tcl_tk_paths:
-        params.extend(['--add-binary', f'{src};{dst}'])
-    
-    try:
-        # 运行 PyInstaller
-        PyInstaller.__main__.run(params)
-        print("Build completed successfully!")
-        
-    except Exception as e:
-        print(f"Build failed: {str(e)}")
-        raise
-    finally:
-        # 清理临时文件
-        if os.path.exists('runtime_hook.py'):
-            os.remove('runtime_hook.py')
+    print("构建完成！")
 
 if __name__ == "__main__":
-    build() 
+    try:
+        build_exe()
+    except Exception as e:
+        print(f"构建失败: {str(e)}")
+        sys.exit(1) 
